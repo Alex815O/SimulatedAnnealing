@@ -18,22 +18,24 @@
 
 Input.json file will be stored as Python Dict, thats the easyiest approach
 The output will be a dict/json:
+We also Add meta data, to the solution/neigbourhood dict, otherwise, we would need to do many slow joins
 ```json
 {
   "Jobs": [
-    { "JobId": 1, "StartTime": 2536, "MachineId": 1 },
-    { "JobId": 2, "StartTime": 3391, "MachineId": 1 },
-    { "JobId": 3, "StartTime": 3131, "MachineId": 1 },
-    { "JobId": 4, "StartTime": 29, "MachineId": 1 },
-    { "JobId": 5, "StartTime": 3486, "MachineId": 1 },
-    { "JobId": 6, "StartTime": 136, "MachineId": 1 },
-    { "JobId": 7, "StartTime": 2058, "MachineId": 1 },
-    { "JobId": 8, "StartTime": 2629, "MachineId": 1 },
-    { "JobId": 9, "StartTime": 1428, "MachineId": 2 },
-    { "JobId": 10, "StartTime": 742, "MachineId": 1 }
+    { "JobId": 1, "StartTime": 2536, "MachineId": 1, "EndTime": 0, "DueTime": 0 },
+    { "JobId": 2, "StartTime": 3391, "MachineId": 1, "EndTime": 0, "DueTime": 0 },
+    { "JobId": 3, "StartTime": 3131, "MachineId": 1, "EndTime": 0, "DueTime": 0 },
+    { "JobId": 4, "StartTime": 29, "MachineId": 1, "EndTime": 0, "DueTime": 0 },
+    { "JobId": 5, "StartTime": 3486, "MachineId": 1, "EndTime": 0, "DueTime": 0 },
+    { "JobId": 6, "StartTime": 136, "MachineId": 1, "EndTime": 0, "DueTime": 0 },
+      { "JobId": 7, "StartTime": 2058, "MachineId": 1, "EndTime": 0, "DueTime": 0 },
+      { "JobId": 8, "StartTime": 2629, "MachineId": 1, "EndTime": 0, "DueTime": 0 },
+      { "JobId": 9, "StartTime": 1428, "MachineId": 2, "EndTime": 0, "DueTime": 0 },
+      { "JobId": 10, "StartTime": 742, "MachineId": 1, "EndTime": 0, "DueTime": 0 }
   ]
 }
 ```
+
 
 ## Neighbourhood
 

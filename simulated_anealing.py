@@ -2,9 +2,13 @@ import json
 import math
 from random import Random, random
 import copy
+import datetime
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 
 import constraints
 
+timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 rand = Random()
 
 
@@ -84,12 +88,68 @@ def greedy_solution(input):
     return {}
 
 
-def show_statistic(solution)
-    return
+def show_statistic(solution):
+    if not solution:
+        print("No solution to display")
+        return
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    # Get unique machines and sort them
+    machines = sorted(set(job["MachineId"] for job in solution))
+    machine_to_y = {machine: i for i, machine in enumerate(machines)}
+
+    # Create color map for jobs
+    colors = plt.cm.tab20.colors
+
+    # Plot each job as a horizontal bar
+    for idx, job in enumerate(solution):
+        machine = job["MachineId"]
+        start = job["StartTime"]
+        end = job["EndTime"]
+        duration = end - start
+        y_pos = machine_to_y[machine]
+
+        color = colors[idx % len(colors)]
+        rect = patches.Rectangle(
+            (start, y_pos - 0.4), duration, 0.8,
+            linewidth=1, edgecolor='black', facecolor=color
+        )
+        ax.add_patch(rect)
+
+        # Add job ID label in the middle of the bar
+        if duration > 0:
+            ax.text(start + duration/2, y_pos,
+                   f"Job {job.get('JobID', idx)}",
+                   ha='center', va='center', fontsize=8)
+
+    # Configure plot
+    ax.set_xlabel('Time', fontsize=12)
+    ax.set_ylabel('Machine', fontsize=12)
+    ax.set_title('Job Schedule - Gantt Chart', fontsize=14, fontweight='bold')
+    ax.set_yticks(range(len(machines)))
+    ax.set_yticklabels([f"Machine {m}" for m in machines])
+
+    # Add grid
+    ax.grid(True, axis='x', alpha=0.3)
+    ax.set_axisbelow(True)
+
+    plt.tight_layout()
+    plt.show()
 
 
 def log_result(solution, score, T, attemts):
-    print(solution, score, T, attemts)
+    log_message = (
+        f"[{timestamp}] "
+        f"Attempt: {attemts:4d} | "
+        f"Temperature: {T:8.4f} | "
+        f"Score: {score:10.4f}"
+    )
+
+    print(log_message)
+
+    with open("sa_log.txt", "a") as f:
+        f.write(f"{attemts},{T},{score},{timestamp}\n")
 
 
 def main():
