@@ -9,7 +9,14 @@ def validate(solution, context) -> bool:
 
 
 def machine_eligibility(solution, context) -> bool:
-    return False
+    for job in solution:
+        jobId = job["JobId"]
+        allowedMachines = context["Jobs"].find(lambda j: j["Id"] == jobId)[
+            "EligibleMachineIds"
+        ]
+        if job["MachineId"] not in allowedMachines:
+            return False
+    return True
 
 
 def non_overlapping_jobs(solution, context) -> bool:

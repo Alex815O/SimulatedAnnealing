@@ -2,7 +2,7 @@ import copy
 import datetime
 import json
 import math
-from random import Random, random
+from random import Random
 
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
