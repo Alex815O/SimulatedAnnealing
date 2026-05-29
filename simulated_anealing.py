@@ -1,6 +1,9 @@
 import json
 import math
-from random import Random
+from random import Random, random
+import copy
+
+import constraints
 
 rand = Random()
 
@@ -15,7 +18,24 @@ def read_input(file_path):
 
 
 def generate_neighbour(solution, input):
-    return None
+    solution = copy.deepcopy(solution)
+    jobs_nr = len(solution)
+
+    neighbour = copy.deepcopy(solution)
+    while not constraints.validate(neighbour, input):
+        job_to_move = rand.random() * jobs_nr
+        job_to_switch = rand.random() * jobs_nr
+
+        neighbour = switch_jobs(neighbour, job_to_move, job_to_switch)
+
+    return neighbour
+
+def switch_jobs(solution, job_to_move, job_to_switch):
+    solution[job_to_switch]["StartTime"], solution[job_to_move]["StartTime"] = solution[job_to_move]["StartTime"], solution[job_to_switch]["StartTime"]
+    solution[job_to_switch]["MachineId"], solution[job_to_move]["MachineId"] = solution[job_to_move]["MachineId"], solution[job_to_switch]["MachineId"]
+    solution[job_to_switch]["EndTime"], solution[job_to_move]["EndTime"] = solution[job_to_move]["EndTime"], solution[job_to_switch]["EndTime"]
+    solution[job_to_switch]["DueTime"], solution[job_to_move]["DueTime"] = solution[job_to_move]["DueTime"], solution[job_to_switch]["DueTime"]
+
 
 
 def evaluate(solution, input):
