@@ -84,3 +84,13 @@ Wie?
 Vorteile: ✅ Nachbarschaftsfunktion bleibt einfach (generiert zuerst beliebige Nachbarn). ✅ SA bleibt im gültigen Suchraum (nach der Reparatur). ✅ Keine Strafterme nötig → Evaluation bleibt einfach.
 Nachteile: ❌ Reparatur kann aufwendig sein (z. B. NP-schwer bei komplexen Constraints). ❌ Reparatur könnte die Lösung stark verändern → Der Nachbar ist nicht mehr eine kleine Änderung der ursprünglichen Lösung. ❌ Schwierig zu garantieren, dass die Reparatur immer funktioniert.
 ```
+
+## Greedy Solution
+Logik:
+ 1. Maschinenauswahl: Jeder Job bekommt die erste erlaubte Maschine (EligibleMachineIds[0])
+ 2. Reihenfolge: Jobs werden nach Anzahl ihrer Predecessors sortiert (Jobs ohne Abhängigkeiten zuerst)
+ 3. StartTime-Berechnung:
+• Precedences: StartTime ≥ EndTime aller Predecessor-Jobs
+• Maschine: StartTime ≥ EndTime des letzten Jobs auf derselben Maschine + SetupTime
+• Initial Setup: StartTime ≥ InitialSetupTime für den ersten Job auf einer Maschine
+ 4. EndTime: StartTime + ProcessingTime

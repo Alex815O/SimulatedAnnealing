@@ -100,7 +100,53 @@ def simulated_anealing(input: dict):
 
 
 def greedy_solution(input):
-    return {}
+    """Simple greedy solution: schedule jobs in topological order, respecting all constraints."""
+    input_jobs = {job["Id"]: job for job in input["Jobs"]}
+    
+    # Create solution jobs with initial values
+    solution = [
+        {
+            "JobId": job["Id"],
+            "StartTime": 0,
+            "MachineId": job["EligibleMachineIds"][0],  # First eligible machine
+            "EndTime": 0,
+            "DueTime": job["DueTime"]
+        }
+        for job in input["Jobs"]
+    ]
+    
+    # Sort by number of predecessors (topological-like order)
+    solution.sort(key=lambda j: len(input_jobs[j["JobId"]]["PrecedenceJobIds"]))
+    
+    # Track last job per machine for setup times
+    machine_last_job = {}  # machine_id -> last job on that machine
+    
+    for job in solution:
+        job_id = job["JobId"]
+        ctx_job = input_jobs[job_id]
+        machine_id = job["MachineId"]
+        
+        start_time = 0
+        
+        # 1. Precedence: must start after all predecessors finish
+        for pred_id in ctx_job["PrecedenceJobIds"]:
+            pred_job = next(j for j in solution if j["JobId"] == pred_id)
+            start_time = max(start_time, pred_job["EndTime"])
+        
+        # 2. Machine: after last job on machine + setup time
+        if machine_id in machine_last_job:
+            last_job = machine_last_job[machine_id]
+            setup_time = ctx_job["JobSetupTimes"][last_job["JobId"] - 1]
+            start_time = max(start_time, last_job["EndTime"] + setup_time)
+        else:
+            # First job on this machine: initial setup time
+            start_time = max(start_time, ctx_job["InitialSetupTime"])
+        
+        job["StartTime"] = start_time
+        job["EndTime"] = start_time + ctx_job["ProcessingTime"]
+        machine_last_job[machine_id] = job
+    
+    return solution
 
 
 def show_statistic(solution):
