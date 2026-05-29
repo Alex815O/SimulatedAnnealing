@@ -1,10 +1,11 @@
+import copy
+import datetime
 import json
 import math
 from random import Random, random
-import copy
-import datetime
-import matplotlib.pyplot as plt
+
 import matplotlib.patches as patches
+import matplotlib.pyplot as plt
 
 import constraints
 
@@ -13,6 +14,7 @@ rand = Random()
 
 
 hyperparam: dict = {"T_max": 100, "T_min": 10, "max_attemts": 10**3, "alpha": 0.95}
+
 
 def read_input(file_path):
     with open("data.json") as json_file:
@@ -34,21 +36,34 @@ def generate_neighbour(solution, input):
 
     return neighbour
 
-def switch_jobs(solution, job_to_move, job_to_switch):
-    solution[job_to_switch]["StartTime"], solution[job_to_move]["StartTime"] = solution[job_to_move]["StartTime"], solution[job_to_switch]["StartTime"]
-    solution[job_to_switch]["MachineId"], solution[job_to_move]["MachineId"] = solution[job_to_move]["MachineId"], solution[job_to_switch]["MachineId"]
-    solution[job_to_switch]["EndTime"], solution[job_to_move]["EndTime"] = solution[job_to_move]["EndTime"], solution[job_to_switch]["EndTime"]
-    solution[job_to_switch]["DueTime"], solution[job_to_move]["DueTime"] = solution[job_to_move]["DueTime"], solution[job_to_switch]["DueTime"]
 
+def switch_jobs(solution, job_to_move, job_to_switch):
+    solution[job_to_switch]["StartTime"], solution[job_to_move]["StartTime"] = (
+        solution[job_to_move]["StartTime"],
+        solution[job_to_switch]["StartTime"],
+    )
+    solution[job_to_switch]["MachineId"], solution[job_to_move]["MachineId"] = (
+        solution[job_to_move]["MachineId"],
+        solution[job_to_switch]["MachineId"],
+    )
+    solution[job_to_switch]["EndTime"], solution[job_to_move]["EndTime"] = (
+        solution[job_to_move]["EndTime"],
+        solution[job_to_switch]["EndTime"],
+    )
+    solution[job_to_switch]["DueTime"], solution[job_to_move]["DueTime"] = (
+        solution[job_to_move]["DueTime"],
+        solution[job_to_switch]["DueTime"],
+    )
 
 
 def evaluate(solution, input):
     score = 0
-    for job in solution
+    for job in solution:
         tradiness = max(0, job["EndTime"] - job["DueTime"])
         makespan = job["EndTime"]
         score += tradiness - makespan
     return score
+
 
 def cooling_ration(T, t):
     return T * hyperparam["alpha"]
@@ -112,26 +127,35 @@ def show_statistic(solution):
 
         color = colors[idx % len(colors)]
         rect = patches.Rectangle(
-            (start, y_pos - 0.4), duration, 0.8,
-            linewidth=1, edgecolor='black', facecolor=color
+            (start, y_pos - 0.4),
+            duration,
+            0.8,
+            linewidth=1,
+            edgecolor="black",
+            facecolor=color,
         )
         ax.add_patch(rect)
 
         # Add job ID label in the middle of the bar
         if duration > 0:
-            ax.text(start + duration/2, y_pos,
-                   f"Job {job.get('JobID', idx)}",
-                   ha='center', va='center', fontsize=8)
+            ax.text(
+                start + duration / 2,
+                y_pos,
+                f"Job {job.get('JobID', idx)}",
+                ha="center",
+                va="center",
+                fontsize=8,
+            )
 
     # Configure plot
-    ax.set_xlabel('Time', fontsize=12)
-    ax.set_ylabel('Machine', fontsize=12)
-    ax.set_title('Job Schedule - Gantt Chart', fontsize=14, fontweight='bold')
+    ax.set_xlabel("Time", fontsize=12)
+    ax.set_ylabel("Machine", fontsize=12)
+    ax.set_title("Job Schedule - Gantt Chart", fontsize=14, fontweight="bold")
     ax.set_yticks(range(len(machines)))
     ax.set_yticklabels([f"Machine {m}" for m in machines])
 
     # Add grid
-    ax.grid(True, axis='x', alpha=0.3)
+    ax.grid(True, axis="x", alpha=0.3)
     ax.set_axisbelow(True)
 
     plt.tight_layout()
