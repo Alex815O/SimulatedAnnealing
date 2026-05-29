@@ -5,6 +5,8 @@ from random import Random
 rand = Random()
 
 
+hyperparam: dict = {"T_max": 100, "T_min": 10, "max_attemts": 10**3, "alpha": 0.95}
+
 def read_input(file_path):
     with open("data.json") as json_file:
         data = json.load(json_file)
@@ -17,11 +19,15 @@ def generate_neighbour(solution, input):
 
 
 def evaluate(solution, input):
-    return -1
-
+    score = 0
+    for job in solution
+        tradiness = max(0, job["EndTime"] - job["DueTime"])
+        makespan = job["EndTime"]
+        score += tradiness - makespan
+    return score
 
 def cooling_ration(T, t):
-    return T
+    return T * hyperparam["alpha"]
 
 
 def accapt_neighbour(score_solution, score_neighbour, T):
@@ -29,11 +35,8 @@ def accapt_neighbour(score_solution, score_neighbour, T):
     return rand.random() < prob
 
 
-def simulated_anealing(
-    input: dict,
-    hyperparam: dict = {"T": 100, "T_min": 10, "max_attemts": 10**3},
-):
-    T = hyperparam["T"]
+def simulated_anealing(input: dict):
+    T = hyperparam["T_max"]
     T_min = hyperparam["T_min"]
     max_attemts = hyperparam["T_min"]
 
@@ -61,7 +64,7 @@ def greedy_solution(input):
     return {}
 
 
-def show_statistic(solution):
+def show_statistic(solution)
     return
 
 
