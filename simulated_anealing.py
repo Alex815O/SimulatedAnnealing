@@ -3,7 +3,6 @@ import datetime
 import json
 import math
 import sys
-from pickletools import read_int4
 from random import Random
 
 # import matplotlib.patches as patches
@@ -30,11 +29,14 @@ def generate_neighbour(solution, input):
 
     neighbour = copy.deepcopy(solution)
 
+    tries = 0
     while not constraints.validate(neighbour, input):
         job_to_move = int(rand.random() * jobs_nr)
         job_to_switch = int(rand.random() * jobs_nr)
 
         neighbour = switch_jobs(neighbour, job_to_move, job_to_switch)
+        _log_error("----- neigbour " + str(tries) + " --------")
+        tries += 1
 
     return neighbour
 
@@ -48,9 +50,12 @@ def switch_jobs(solution, job_to_move, job_to_switch):
         solution[job_to_move]["MachineId"],
         solution[job_to_switch]["MachineId"],
     )
-    solution[job_to_switch]["EndTime"], solution[job_to_move]["EndTime"] = (
-        solution[job_to_move]["EndTime"],
-        solution[job_to_switch]["EndTime"],
+    (
+        solution[job_to_switch]["ProcessingTime"],
+        solution[job_to_move]["ProcessingTime"],
+    ) = (
+        solution[job_to_move]["ProcessingTime"],
+        solution[job_to_switch]["ProcessingTime"],
     )
     solution[job_to_switch]["DueTime"], solution[job_to_move]["DueTime"] = (
         solution[job_to_move]["DueTime"],
@@ -62,8 +67,9 @@ def switch_jobs(solution, job_to_move, job_to_switch):
 def evaluate(solution, input):
     score = 0
     for job in solution:
-        tradiness = max(0, job["EndTime"] - job["DueTime"])
-        makespan = job["EndTime"]
+        end_time = job["StartTime"] + job["ProcessingTime"]
+        tradiness = max(0, end_time - job["DueTime"])
+        makespan = end_time
         score += tradiness - makespan
     return score
 
@@ -112,7 +118,7 @@ def greedy_solution(input):
             "JobId": job["Id"],
             "StartTime": 0,
             "MachineId": job["EligibleMachineIds"][0],  # First eligible machine
-            "EndTime": 0,
+            "ProcessingTime": job["ProcessingTime"],
             "DueTime": job["DueTime"],
         }
         for job in input["Jobs"]
@@ -134,22 +140,36 @@ def greedy_solution(input):
         # 1. Precedence: must start after all predecessors finish
         for pred_id in ctx_job["PrecedenceJobIds"]:
             pred_job = next(j for j in solution if j["JobId"] == pred_id)
-            start_time = max(start_time, pred_job["EndTime"])
+            pred_end_time = pred_job["StartTime"] + pred_job["ProcessingTime"]
+            start_time = max(start_time, pred_end_time)
 
         # 2. Machine: after last job on machine + setup time
         if machine_id in machine_last_job:
             last_job = machine_last_job[machine_id]
             setup_time = ctx_job["JobSetupTimes"][last_job["JobId"] - 1]
-            start_time = max(start_time, last_job["EndTime"] + setup_time)
+            last_end_time = last_job["StartTime"] + last_job["ProcessingTime"]
+            start_time = max(start_time, last_end_time + setup_time)
         else:
             # First job on this machine: initial setup time
             start_time = max(start_time, ctx_job["InitialSetupTime"])
 
         job["StartTime"] = start_time
-        job["EndTime"] = start_time + ctx_job["ProcessingTime"]
         machine_last_job[machine_id] = job
 
+    _log_error("-------- greedy --------")
+    _log_error(json.dumps(solution, indent=4))
+    solution = generate_neighbour(solution, input)
+
+    print("-------- greedy solution found --------")
+    print(json.dumps(solution, indent=4))
+    print("----------------")
+
     return solution
+
+
+def _log_error(message: str):
+    with open("error.log", "a") as f:
+        f.write(message + "\n")
 
 
 # def show_statistic(solution):

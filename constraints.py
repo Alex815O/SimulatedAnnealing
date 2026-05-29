@@ -5,11 +5,14 @@ from enum import IntEnum
 from itertools import combinations
 
 
+def _log_error(message: str):
+    with open("error.log", "a") as f:
+        f.write(message + "\n")
+
+
 def validate(solution, context) -> bool:
     instance_data = copy.deepcopy(context)
     sol_data = {"Jobs": copy.deepcopy(solution), "Feasible": True}
-
-    print(json.dumps(sol_data, indent=4))
 
     check_machine_eligibility(instance_data, sol_data)
 
@@ -47,12 +50,12 @@ def check_machine_eligibility(instance_data, sol_data):
         job_id = j["Id"]
         machine_id = get_sol_machine_id(sol_data, job_id)
         if machine_id == -1:
-            print(
+            _log_error(
                 f"Constraint violation: Job {job_id} has not been scheduled to any machine."
             )
             sol_data["Feasible"] = False
         elif machine_id not in j["EligibleMachineIds"]:
-            print(
+            _log_error(
                 f"Constraint violation: Job {job_id} has been scheduled to ineligible machine {machine_id}."
             )
             sol_data["Feasible"] = False
@@ -76,7 +79,7 @@ def check_no_job_overlap(instance_data, sol_data):
                 j2_start + j2["ProcessingTime"],
             )
             if j1_start < j2_end and j2_start < j1_end:
-                print(
+                _log_error(
                     f"Constraint violation: Jobs {j1_id} and {j2_id} are overlapping on machine {j1_m}."
                 )
                 sol_data["Feasible"] = False
@@ -93,7 +96,7 @@ def check_job_precedences(instance_data, sol_data):
             start_j = get_sol_start_time(sol_data, j_id)
 
             if end_p > start_j:
-                print(
+                _log_error(
                     f"Constraint violation: Precedence Job {p} is not finished before the start of Job {j_id}."
                 )
                 sol_data["Feasible"] = False
@@ -113,7 +116,7 @@ def check_setup_times(instance_data, sol_data):
         j1_id, j1_start = j1["JobId"], j1["StartTime"]
         j1_setup = get_inst_job(instance_data, j1_id)["InitialSetupTime"]
         if j1_start < j1_setup:
-            print(
+            _log_error(
                 f"Constraint violation: Job {j1_id} does not use enough initial setup time "
                 f"(actual: {j1_start}, required: {j1_setup})."
             )
@@ -126,7 +129,7 @@ def check_setup_times(instance_data, sol_data):
             j1_end = j1_start + get_inst_job(instance_data, j1_id)["ProcessingTime"]
             j2_setup = get_inst_job(instance_data, j2_id)["JobSetupTimes"][j1_id - 1]
             if j2_start < j1_end + j2_setup:
-                print(
+                _log_error(
                     f"Constraint violation: Job {j2_id} does not have enough setup time after Job {j1_id}"
                     f"(actual: {j2_start - j1_end}, required: {j2_setup})."
                 )
@@ -135,7 +138,7 @@ def check_setup_times(instance_data, sol_data):
 
 class ResourceEvent(IntEnum):
     JOB_END = 0
-    PERIOD_START = (1,)
+    PERIOD_START = 1
     JOB_START = 2
 
 
@@ -189,20 +192,21 @@ def check_resource_availabilities(instance_data, sol_data):
         )
     events.sort(key=lambda k: (k["Time"], k["Type"]))
 
-    # Go over all events and check resource availabilities
+    # Track resource availability
     cur_capacity = [0 for _ in instance_data["Resources"]]
     for e in events:
         r_id = e["ResourceId"]
         r_idx = r_id - 1
         c = e["Capacity"]
+
         if e["Type"] == ResourceEvent.JOB_END:
             cur_capacity[r_idx] += c
         elif e["Type"] == ResourceEvent.PERIOD_START:
             cur_capacity[r_idx] = c
         elif e["Type"] == ResourceEvent.JOB_START:
             if cur_capacity[r_idx] < c:
-                print(
-                    f"Constraint violation: There is not enough resource capacity for Job {e['JobId']}"
+                _log_error(
+                    f"Constraint violation: There is not enough resource capacity for Job {e.get('JobId', '?')}"
                     f" at time {e['Time']} for Resource {r_id} ({c - cur_capacity[r_idx]} capacity missing)"
                 )
                 sol_data["Feasible"] = False
