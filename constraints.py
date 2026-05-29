@@ -7,9 +7,9 @@ from itertools import combinations
 
 def validate(solution, context) -> bool:
     instance_data = copy.deepcopy(context)
-    sol_data = copy.deepcopy(solution)
+    sol_data = {"Jobs": copy.deepcopy(solution), "Feasible": True}
 
-    sol_data["Feasible"] = True
+    print(json.dumps(sol_data, indent=4))
 
     check_machine_eligibility(instance_data, sol_data)
 
@@ -23,7 +23,7 @@ def validate(solution, context) -> bool:
 
     tardiness = calculate_tardiness(instance_data, sol_data)
     makespan = calculate_makespan(instance_data, sol_data)
-    return sol_data["Feasible"])
+    return sol_data["Feasible"]
 
 
 def get_sol_start_time(sol_data, job_id):
