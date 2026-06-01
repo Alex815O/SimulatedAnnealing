@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "debugpy>=1.8.20",
+    "deepdiff>=9.1.0",
     "matplotlib==3.8.0",
     "python-dateutil>=2.9.0.post0",
 ]
