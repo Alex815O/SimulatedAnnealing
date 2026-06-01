@@ -1,5 +1,6 @@
 import copy
 import datetime
+import json
 from random import Random
 
 import constraints
@@ -25,8 +26,13 @@ def generate_neighbour(solution, input_data):
             continue
         rebuilt = rebuild_schedule(neighbour, input_data)
 
+        # Debug: Show differences between rebuilt and original solution
+        if rebuilt is not None:
+            orig_json = json.dumps(solution, sort_keys=True, indent=2)
+            new_json = json.dumps(rebuilt, sort_keys=True, indent=2)
+            print(f"Original:\n{orig_json}\nRebuilt:\n{new_json}")
+
         if rebuilt is not None and constraints.validate(rebuilt, input_data):
-            print(rebuilt)
             return rebuilt
 
     # Fallback: no valid neighbour found.
