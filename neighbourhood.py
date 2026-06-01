@@ -11,11 +11,11 @@ rand = Random()
 def generate_neighbour(solution, input_data):
     jobs_nr = len(solution)
 
-    for tries in range(100):
+    for tries in range(10000):
         neighbour = copy.deepcopy(solution)
 
-        move_type = rand.choice(["swap_order", "change_machine"])
-
+        move_type = rand.choice(["swap_order", "swap_order", "change_machine"])
+        print(tries, move_type)
         if move_type == "swap_order":
             neighbour = swap_order_on_same_machine(neighbour, input_data)
         elif move_type == "change_machine":
@@ -26,6 +26,7 @@ def generate_neighbour(solution, input_data):
         rebuilt = rebuild_schedule(neighbour, input_data)
 
         if rebuilt is not None and constraints.validate(rebuilt, input_data):
+            print(rebuilt)
             return rebuilt
 
     # Fallback: no valid neighbour found.
