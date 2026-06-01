@@ -8,24 +8,6 @@ timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 rand = Random()
 
 
-def swap_order_on_same_machine(solution, context):
-    jobs_of_machine = {}
-    for job in solution:
-        jobs_of_machine[solution["MachineId"]] = job
-
-    random_machine = rand.randint(0, len(context["Machines"]))
-
-    jobs_of_rand_machine = jobs_of_machine[random_machine]
-    jobs_nr_of_machine = len(jobs_of_rand_machine)
-    i = rand.randrange(jobs_nr_of_machine)
-    j = rand.randrange(jobs_nr_of_machine)
-
-    if i == j:
-        return None
-
-    neighbour[i], neighbour[j] = neighbour[j], neighbour[i]
-
-
 def generate_neighbour(solution, input_data):
     jobs_nr = len(solution)
 
@@ -35,13 +17,9 @@ def generate_neighbour(solution, input_data):
         move_type = rand.choice(["swap_order", "change_machine"])
 
         if move_type == "swap_order":
-            i = rand.randrange(jobs_nr)
-            j = rand.randrange(jobs_nr)
-
-            if i == j:
+            neighbour = swap_order_on_same_machine(neighbour, input_data)
+            if neighbour is None:
                 continue
-
-            neighbour[i], neighbour[j] = neighbour[j], neighbour[i]
 
         elif move_type == "change_machine":
             i = rand.randrange(jobs_nr)
@@ -69,6 +47,49 @@ def generate_neighbour(solution, input_data):
 
     # Fallback: no valid neighbour found.
     return copy.deepcopy(solution)
+
+
+def swap_order_on_same_machine(solution, context):
+    jobs_of_machine = {}
+    for job in solution:
+        jobs_of_machine[job["MachineId"]] = job
+
+    random_machine = rand.randint(
+        1, len(context["Machines"])
+    )  # MachinId startet mit 1 und es is dict, ned list
+
+    jobs_of_rand_machine = jobs_of_machine[random_machine]
+    jobs_nr_of_machine = len(jobs_of_rand_machine)
+    i = rand.randrange(jobs_nr_of_machine)
+    j = rand.randrange(jobs_nr_of_machine)
+
+    if i == j:
+        return None
+
+    return switch_jobs(solution, i, j)
+
+
+def switch_jobs(solution, job_to_move, job_to_switch):
+    solution[job_to_switch]["StartTime"], solution[job_to_move]["StartTime"] = (
+        solution[job_to_move]["StartTime"],
+        solution[job_to_switch]["StartTime"],
+    )
+    solution[job_to_switch]["MachineId"], solution[job_to_move]["MachineId"] = (
+        solution[job_to_move]["MachineId"],
+        solution[job_to_switch]["MachineId"],
+    )
+    (
+        solution[job_to_switch]["ProcessingTime"],
+        solution[job_to_move]["ProcessingTime"],
+    ) = (
+        solution[job_to_move]["ProcessingTime"],
+        solution[job_to_switch]["ProcessingTime"],
+    )
+    solution[job_to_switch]["DueTime"], solution[job_to_move]["DueTime"] = (
+        solution[job_to_move]["DueTime"],
+        solution[job_to_switch]["DueTime"],
+    )
+    return solution
 
 
 def rebuild_schedule(solution, input_data):
