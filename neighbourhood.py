@@ -1,10 +1,11 @@
 import copy
 import datetime
-import json
-import math
-import sys
 from random import Random
-from tkinter import constants
+
+import constraints
+
+timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+rand = Random()
 
 
 def swap_order_on_same_machine(solution, context):
