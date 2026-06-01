@@ -94,8 +94,8 @@ def simulated_annealing(input_data: dict):
     best = copy.deepcopy(current)
     best_score = current_score
 
+    attempt = 0
     while T > T_min:
-        attempt = 0
         for t in range(max_attempts):
             neighbour = generate_neighbour(current, input_data)
             neighbour_score = evaluate(neighbour, input_data)
@@ -108,8 +108,8 @@ def simulated_annealing(input_data: dict):
                 best = copy.deepcopy(current)
                 best_score = current_score
 
-            log_result(best, best_score, T, attempt)
-
+            log_result(best, best_score, T, t, attempt)
+        attempt += 1
         T *= alpha
 
     return best
@@ -377,10 +377,11 @@ def greedy_solution(input_data):
     raise RuntimeError("Could not construct a valid initial greedy solution.")
 
 
-def log_result(solution, score, T, attemts):
+def log_result(solution, score, T, t, attemts):
     log_message = (
         f"[{timestamp}] "
         f"Attempt: {attemts:4d} | "
+        f"t: {t:4d}             | "
         f"Temperature: {T:8.4f} | "
         f"Score: {score:10.4f}"
     )
@@ -388,7 +389,7 @@ def log_result(solution, score, T, attemts):
     print(log_message)
 
     with open("sa_log.txt", "a") as f:
-        f.write(f"{attemts},{T},{score},{timestamp}\n")
+        f.write(f"{attemts},{T},{t}, {score},{timestamp}\n")
 
 
 def main():
