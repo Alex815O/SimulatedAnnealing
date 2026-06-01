@@ -8,6 +8,7 @@ from random import Random
 import constraints
 import greedy
 import neighbourhood
+import visualize_logs
 
 timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 rand = Random()
@@ -85,6 +86,8 @@ def log_result(solution, score, T, t, attemts):
 
     with open("sa_log.txt", "a") as f:
         f.write(f"{attemts},{T},{t}, {score},{timestamp}\n")
+
+    visualize_logs.update(score, T)
 
 
 def main():
