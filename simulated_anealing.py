@@ -5,15 +5,13 @@ import math
 import sys
 from random import Random
 
-# import matplotlib.patches as patches
-# import matplotlib.pyplot as plt
 import constraints
 
 timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 rand = Random()
 
 
-hyperparam: dict = {"T_max": 100, "T_min": 10, "max_attemts": 10**3, "alpha": 0.95}
+hyperparam: dict = {"T_max": 100, "T_min": 10, "max_attemts": 10, "alpha": 0.95}
 
 
 def read_input(file_path):
@@ -53,9 +51,7 @@ def generate_neighbour(solution, input_data):
                 continue
 
             current_machine = neighbour[i]["MachineId"]
-            possible_machines = [
-                m for m in eligible_machines if m != current_machine
-            ]
+            possible_machines = [m for m in eligible_machines if m != current_machine]
 
             if not possible_machines:
                 continue
@@ -70,28 +66,12 @@ def generate_neighbour(solution, input_data):
     # Fallback: no valid neighbour found.
     return copy.deepcopy(solution)
 
-def switch_jobs(solution, job_to_move, job_to_switch):
-    """
-    Neighbour move: swap the order of two jobs in the solution list.
-    We do NOT swap StartTime, ProcessingTime, or DueTime.
-    StartTime will be recalculated later by rebuild_schedule().
-    """
-    solution[job_to_move], solution[job_to_switch] = (
-        solution[job_to_switch],
-        solution[job_to_move],
-    )
-    return solution
-
 
 def evaluate(solution, input_data):
     sol_data = {"Jobs": copy.deepcopy(solution), "Feasible": True}
     tardiness = constraints.calculate_tardiness(input_data, sol_data)
     makespan = constraints.calculate_makespan(input_data, sol_data)
     return tardiness + makespan
-
-
-def cooling_ration(T, t):
-    return T * hyperparam["alpha"]
 
 
 def accept_neighbour(score_solution, score_neighbour, T):
@@ -114,26 +94,26 @@ def simulated_annealing(input_data: dict):
     best = copy.deepcopy(current)
     best_score = current_score
 
-    attempt = 0
+    while T > T_min:
+        attempt = 0
+        for t in range(max_attempts):
+            neighbour = generate_neighbour(current, input_data)
+            neighbour_score = evaluate(neighbour, input_data)
 
-    while T > T_min and attempt < max_attempts:
-        neighbour = generate_neighbour(current, input_data)
-        neighbour_score = evaluate(neighbour, input_data)
+            if accept_neighbour(current_score, neighbour_score, T):
+                current = neighbour
+                current_score = neighbour_score
 
-        if accept_neighbour(current_score, neighbour_score, T):
-            current = neighbour
-            current_score = neighbour_score
+            if current_score < best_score:
+                best = copy.deepcopy(current)
+                best_score = current_score
 
-        if current_score < best_score:
-            best = copy.deepcopy(current)
-            best_score = current_score
-
-        log_result(best, best_score, T, attempt)
+            log_result(best, best_score, T, attempt)
 
         T *= alpha
-        attempt += 1
 
     return best
+
 
 def get_resource_capacity_at(resource, time):
     """
@@ -168,7 +148,9 @@ def get_used_resource_capacity(resource_id, time, scheduled_jobs, input_jobs):
     return used_capacity
 
 
-def resources_available_for_job(job_data, start_time, scheduled_jobs, input_data, input_jobs):
+def resources_available_for_job(
+    job_data, start_time, scheduled_jobs, input_data, input_jobs
+):
     """
     Check whether all required resources are available for the whole duration
     of job_data if it starts at start_time.
@@ -198,6 +180,7 @@ def resources_available_for_job(job_data, start_time, scheduled_jobs, input_data
 
     return True
 
+
 def rebuild_schedule(solution, input_data):
     """
     Recalculate start times for a solution.
@@ -219,8 +202,8 @@ def rebuild_schedule(solution, input_data):
     for job in solution:
         job["StartTime"] = 0
 
-    scheduled = {}   # job_id -> scheduled job
-    rebuilt = []     # final rebuilt schedule
+    scheduled = {}  # job_id -> scheduled job
+    rebuilt = []  # final rebuilt schedule
     remaining = copy.deepcopy(solution)
 
     # Safety bound to prevent infinite searching for a resource-feasible time.
@@ -230,7 +213,11 @@ def rebuild_schedule(solution, input_data):
         max(job["JobSetupTimes"]) if job["JobSetupTimes"] else 0
         for job in input_data["Jobs"]
     )
-    horizon_limit = total_processing_time * len(input_data["Jobs"]) + max_setup_time * len(input_data["Jobs"]) + 1000
+    horizon_limit = (
+        total_processing_time * len(input_data["Jobs"])
+        + max_setup_time * len(input_data["Jobs"])
+        + 1000
+    )
 
     while remaining:
         progress = False
@@ -323,7 +310,7 @@ def greedy_solution(input_data):
         key=lambda job: (
             len(job["PrecedenceJobIds"]),
             job["DueTime"],
-        )
+        ),
     )
 
     def make_solution_with_assignment(mode, attempt=0):
@@ -340,8 +327,7 @@ def greedy_solution(input_data):
             elif mode == "balanced":
                 # Choose eligible machine with currently fewest assigned jobs
                 machine_id = min(
-                    eligible,
-                    key=lambda m_id: machine_load_count.get(m_id, 0)
+                    eligible, key=lambda m_id: machine_load_count.get(m_id, 0)
                 )
 
             elif mode == "random":
@@ -381,76 +367,14 @@ def greedy_solution(input_data):
         rebuilt = rebuild_schedule(solution, input_data)
 
         if rebuilt is not None and constraints.validate(rebuilt, input_data):
-            print(f"-------- greedy solution found using random assignment, attempt {attempt} --------")
+            print(
+                f"-------- greedy solution found using random assignment, attempt {attempt} --------"
+            )
             print(json.dumps(rebuilt, indent=4))
             print("----------------")
             return rebuilt
 
     raise RuntimeError("Could not construct a valid initial greedy solution.")
-
-
-def _log_error(message: str):
-    with open("error.log", "a") as f:
-        f.write(message + "\n")
-
-
-# def show_statistic(solution):
-#     if not solution:
-#         print("No solution to display")
-#         return
-
-#     fig, ax = plt.subplots(figsize=(12, 6))
-
-#     # Get unique machines and sort them
-#     machines = sorted(set(job["MachineId"] for job in solution))
-#     machine_to_y = {machine: i for i, machine in enumerate(machines)}
-
-#     # Create color map for jobs
-#     colors = plt.cm.tab20.colors
-
-#     # Plot each job as a horizontal bar
-#     for idx, job in enumerate(solution):
-#         machine = job["MachineId"]
-#         start = job["StartTime"]
-#         end = job["EndTime"]
-#         duration = end - start
-#         y_pos = machine_to_y[machine]
-
-#         color = colors[idx % len(colors)]
-#         rect = patches.Rectangle(
-#             (start, y_pos - 0.4),
-#             duration,
-#             0.8,
-#             linewidth=1,
-#             edgecolor="black",
-#             facecolor=color,
-#         )
-#         ax.add_patch(rect)
-
-#         # Add job ID label in the middle of the bar
-#         if duration > 0:
-#             ax.text(
-#                 start + duration / 2,
-#                 y_pos,
-#                 f"Job {job.get('JobID', idx)}",
-#                 ha="center",
-#                 va="center",
-#                 fontsize=8,
-#             )
-
-#     # Configure plot
-#     ax.set_xlabel("Time", fontsize=12)
-#     ax.set_ylabel("Machine", fontsize=12)
-#     ax.set_title("Job Schedule - Gantt Chart", fontsize=14, fontweight="bold")
-#     ax.set_yticks(range(len(machines)))
-#     ax.set_yticklabels([f"Machine {m}" for m in machines])
-
-#     # Add grid
-#     ax.grid(True, axis="x", alpha=0.3)
-#     ax.set_axisbelow(True)
-
-#     plt.tight_layout()
-#     plt.show()
 
 
 def log_result(solution, score, T, attemts):
