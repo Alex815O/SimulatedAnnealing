@@ -219115,3 +219115,12 @@ Constraint violation: Job 22 does not have enough setup time after Job 43(actual
 Constraint violation: Job 41 does not have enough setup time after Job 11(actual: -44, required: 81).
 Constraint violation: Job 13 does not have enough setup time after Job 41(actual: -2308, required: 4023).
 Constraint violation: Job 45 does not have enough setup time after Job 46(actual: 725, required: 1453).
+Constraint violation: Jobs 1 and 3 are overlapping on machine 1.
+Constraint violation: Jobs 7 and 9 are overlapping on machine 1.
+Constraint violation: Jobs 11 and 12 are overlapping on machine 2.
+Constraint violation: Jobs 11 and 15 are overlapping on machine 2.
+Constraint violation: Job 9 does not have enough setup time after Job 7(actual: -15, required: 79).
+Constraint violation: Job 3 does not have enough setup time after Job 1(actual: -34, required: 43).
+Constraint violation: Job 12 does not have enough setup time after Job 11(actual: -51, required: 75).
+Constraint violation: Job 13 does not have enough setup time after Job 14(actual: 41, required: 58).
+Constraint violation: Job 19 does not have enough setup time after Job 13(actual: 1, required: 79).

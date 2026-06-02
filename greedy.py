@@ -92,10 +92,6 @@ def greedy_solution(input_data):
         solution = make_solution_with_assignment("random", attempt)
         rebuilt = neighbourhood.rebuild_schedule(solution, input_data)
 
-        if rebuilt is not None:
-            diff = DeepDiff(solution, rebuilt, ignore_order=True)
-            print(diff)
-
         if rebuilt is not None and constraints.validate(rebuilt, input_data):
             print(
                 f"-------- greedy solution found using random assignment, attempt {attempt} --------"
@@ -105,3 +101,32 @@ def greedy_solution(input_data):
             return rebuilt
 
     raise RuntimeError("Could not construct a valid initial greedy solution.")
+
+
+def calculate_resource_change_events(resources):
+    capacity_changes = []
+    if R > 0:
+        last_resource_timestamp = resources[0]["AvailabilityPeriods"][-1]["End"] + 1
+        capacity_changes = sorted(
+            {
+                period["Start"]
+                for resource in resources
+                for period in resource["AvailabilityPeriods"]
+            }.union({last_resource_timestamp}).union({T})
+        )
+    MAX_CAPACITY_CHANGE = len(capacity_changes)
+
+    resourceCapacity = [
+        [
+            # Für jeden Zeitpunkt in capacity_changes
+            # Finde die Kapazität der Ressource zu diesem Zeitpunkt
+            next(
+                period["Capacity"]
+                for period in resource["AvailabilityPeriods"]
+                if period["Start"] <= time < period["End"]
+            )
+            for time in capacity_changes[:-2]
+        ]
+        + [0]
+        for resource in resources
+    ]
