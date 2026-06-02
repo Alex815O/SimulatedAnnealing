@@ -3,6 +3,7 @@ import datetime
 import json
 from multiprocessing import context
 from random import Random
+from tracemalloc import start
 
 from deepdiff import DeepDiff
 
@@ -17,7 +18,7 @@ def generate_neighbour(solution, input_data):
     jobs_nr = len(solution)
 
     for tries in range(10000):
-        window_size = 10
+        window_size = 5
         i = rand.randint(0, jobs_nr - 1 - window_size)
         # j = rand.randint(i + 2, jobs_nr - 1)
         j = i + window_size
@@ -320,6 +321,27 @@ def get_used_resource_capacity(resource_id, time, scheduled_jobs, input_jobs):
     return used_capacity
 
 
+def resource_check_times(start_time, end_time, scheduled_jobs, input_data, input_jobs):
+    """
+    calculates on which timestamp resource capacity needs to be checked
+    """
+    check_times = {start_time}
+
+    for event in input_data["ResourceEvents"]["capacity_changes"]:
+        if start_time < event < end_time:
+            check_times.add(event)
+
+    for scheduled_job in scheduled_jobs:
+        s = scheduled_job["StartTime"]
+        e = s + input_jobs[scheduled_job["JobId"]]["ProcessingTime"]
+        if start_time < s < end_time:
+            check_times.add(s)
+        if start_time < e < end_time:
+            check_times.add(e)
+
+    return check_times
+
+
 def resources_available_for_job(
     job_data, start_time, scheduled_jobs, input_data, input_jobs
 ):
@@ -327,24 +349,25 @@ def resources_available_for_job(
     Check whether all required resources are available for the whole duration
     of job_data if it starts at start_time.
     """
-    processing_time = job_data["ProcessingTime"]
-    end_time = start_time + processing_time
-
     # If job requires no resources, it is always resource-feasible.
     if not job_data["RequiredResources"]:
         return True
 
+    end_time = start_time + job_data["ProcessingTime"]
     resources_by_id = {r["Id"]: r for r in input_data["Resources"]}
 
-    for t in range(start_time, end_time):
+    check_times = resource_check_times(
+        start_time, end_time, scheduled_jobs, input_data, input_jobs
+    )
+    for time in check_times:
         for req in job_data["RequiredResources"]:
             resource_id = req["ResourceId"]
             needed_capacity = req["Capacity"]
 
             resource = resources_by_id[resource_id]
-            available_capacity = get_resource_capacity_at(resource, t)
+            available_capacity = get_resource_capacity_at(resource, time)
             used_capacity = get_used_resource_capacity(
-                resource_id, t, scheduled_jobs, input_jobs
+                resource_id, time, scheduled_jobs, input_jobs
             )
 
             if used_capacity + needed_capacity > available_capacity:

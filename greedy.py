@@ -25,7 +25,6 @@ def greedy_solution(input_data):
     - return the first valid rebuilt schedule
     """
 
-    input_jobs = {job["Id"]: job for job in input_data["Jobs"]}
     machines = [m["Id"] for m in input_data["Machines"]]
 
     # Base job order
@@ -101,32 +100,3 @@ def greedy_solution(input_data):
             return rebuilt
 
     raise RuntimeError("Could not construct a valid initial greedy solution.")
-
-
-def calculate_resource_change_events(resources):
-    capacity_changes = []
-    if R > 0:
-        last_resource_timestamp = resources[0]["AvailabilityPeriods"][-1]["End"] + 1
-        capacity_changes = sorted(
-            {
-                period["Start"]
-                for resource in resources
-                for period in resource["AvailabilityPeriods"]
-            }.union({last_resource_timestamp}).union({T})
-        )
-    MAX_CAPACITY_CHANGE = len(capacity_changes)
-
-    resourceCapacity = [
-        [
-            # Für jeden Zeitpunkt in capacity_changes
-            # Finde die Kapazität der Ressource zu diesem Zeitpunkt
-            next(
-                period["Capacity"]
-                for period in resource["AvailabilityPeriods"]
-                if period["Start"] <= time < period["End"]
-            )
-            for time in capacity_changes[:-2]
-        ]
-        + [0]
-        for resource in resources
-    ]

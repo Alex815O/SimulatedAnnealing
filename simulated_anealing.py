@@ -8,6 +8,7 @@ from random import Random
 import constraints
 import greedy
 import neighbourhood
+import perprocessing
 import visualize_logs
 
 timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -86,7 +87,6 @@ def log_result(solution, score, T, t, attemts):
 
     with open("sa_log.txt", "a") as f:
         f.write(f"{attemts},{T},{t}, {score},{timestamp}\n")
-
     visualize_logs.update(score, T)
 
 
@@ -99,7 +99,7 @@ def main():
     else:
         input_path = sys.argv[1]
     input_data = read_input(input_path)
-
+    input_data = perprocessing.preprocessing(input_data)
     best = simulated_annealing(input_data)
 
     print("-------- best solution found --------")
