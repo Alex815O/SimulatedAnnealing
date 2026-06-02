@@ -18,7 +18,7 @@ def generate_neighbour(solution, input_data):
     jobs_nr = len(solution)
 
     for tries in range(10000):
-        window_size = 5
+        window_size = 10
         i = rand.randint(0, jobs_nr - 1 - window_size)
         # j = rand.randint(i + 2, jobs_nr - 1)
         j = i + window_size
@@ -35,7 +35,8 @@ def generate_neighbour(solution, input_data):
 
         if constraints.validate(neighbour, input_data):
             print("#" * 10)
-            print(len(neighbour), len(solution))
+            diff = DeepDiff(solution, neighbour, ignore_order=True)
+            print(diff)
             print("#" * 10)
             return neighbour
 
@@ -58,10 +59,11 @@ def convert_new_context(solution, context, i, j):
     """
     creates a new context with reduced number of jobs, so the greedy algorithmn can be reused
     """
-    job_window = jobs_in_range(solution, context, i, j)
+    context = copy.deepcopy(context)
+    job_window, window_start_time = jobs_in_range(solution, context, i, j)
     for job in job_window:
-        job["InitialSetupTime"] = i
-    context_window = copy.deepcopy(context)
+        job["InitialSetupTime"] = window_start_time
+    context_window = context
     context_window["Jobs"] = job_window
     return context_window
 
@@ -83,7 +85,7 @@ def jobs_in_range(solution, context, i, j):
         ):
             job = [j for j in context["Jobs"] if j["Id"] == sol["JobId"]][0]
             window_jobs.append(job)
-    return window_jobs
+    return window_jobs, window_start_time
 
 
 def generate_neighbour_old(solution, input_data):
@@ -232,7 +234,10 @@ def rebuild_schedule(solution, input_data):
                 return None
 
             # Only schedule this job once all predecessors have already been scheduled.
-            if not all(pred_id in scheduled for pred_id in ctx_job["PrecedenceJobIds"]):
+            if not all(
+                pred_id in scheduled and pred_id in solution["JobId"]
+                for pred_id in ctx_job["PrecedenceJobIds"]
+            ):
                 continue
 
             # Earliest start due to precedences.
