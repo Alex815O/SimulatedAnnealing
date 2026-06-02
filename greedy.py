@@ -5,6 +5,8 @@ import math
 import sys
 from random import Random
 
+from deepdiff import DeepDiff
+
 import constraints
 import neighbourhood
 
@@ -84,9 +86,15 @@ def greedy_solution(input_data):
             return rebuilt
 
     # Then try random assignments
+
+    print("-----start rebuild path -----------")
     for attempt in range(500):
         solution = make_solution_with_assignment("random", attempt)
         rebuilt = neighbourhood.rebuild_schedule(solution, input_data)
+
+        if rebuilt is not None:
+            diff = DeepDiff(solution, rebuilt, ignore_order=True)
+            print(diff)
 
         if rebuilt is not None and constraints.validate(rebuilt, input_data):
             print(

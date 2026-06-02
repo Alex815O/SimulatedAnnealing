@@ -1,17 +1,91 @@
 import copy
 import datetime
 import json
+from multiprocessing import context
 from random import Random
 
 from deepdiff import DeepDiff
 
 import constraints
+import greedy
 
 timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 rand = Random()
 
 
 def generate_neighbour(solution, input_data):
+    jobs_nr = len(solution)
+
+    for tries in range(10000):
+        window_size = 10
+        i = rand.randint(0, jobs_nr - 1 - window_size)
+        # j = rand.randint(i + 2, jobs_nr - 1)
+        j = i + window_size
+        print("range", j - i, i, j)
+
+        context_window = convert_new_context(solution, input_data, i, j)
+
+        try:
+            neighbour_window = greedy.greedy_solution(context_window)
+        except RuntimeError:
+            continue
+
+        neighbour = replace_jobs_in_solution(solution, neighbour_window)
+
+        if constraints.validate(neighbour, input_data):
+            print("#" * 10)
+            print(len(neighbour), len(solution))
+            print("#" * 10)
+            return neighbour
+
+    # Fallback: no valid neighbour found.
+    return copy.deepcopy(solution)
+
+
+def replace_jobs_in_solution(solution, neighbour_window):
+    neighbour = []
+    for job_sol in solution:
+        job_nei = [j for j in neighbour_window if j["JobId"] == job_sol["JobId"]]
+        if len(job_nei) == 0:
+            neighbour.append(job_sol)
+        else:
+            neighbour.append(job_nei[0])
+    return neighbour
+
+
+def convert_new_context(solution, context, i, j):
+    """
+    creates a new context with reduced number of jobs, so the greedy algorithmn can be reused
+    """
+    job_window = jobs_in_range(solution, context, i, j)
+    for job in job_window:
+        job["InitialSetupTime"] = i
+    context_window = copy.deepcopy(context)
+    context_window["Jobs"] = job_window
+    return context_window
+
+
+def jobs_in_range(solution, context, i, j):
+    """
+    Searchs for jobs, which are in range of the jobs on position i and j
+    """
+    solution = copy.deepcopy(solution)
+    window_start_time = solution[i]["StartTime"]
+    last_job = solution[j]
+    window_end_time = last_job["StartTime"] + last_job["ProcessingTime"]
+
+    window_jobs = []
+    for sol in solution:
+        if (
+            sol["StartTime"] >= window_start_time
+            and sol["StartTime"] + sol["ProcessingTime"] <= window_end_time
+        ):
+            job = [j for j in context["Jobs"] if j["Id"] == sol["JobId"]][0]
+            window_jobs.append(job)
+    return window_jobs
+
+
+def generate_neighbour_old(solution, input_data):
     jobs_nr = len(solution)
 
     for tries in range(10000):
