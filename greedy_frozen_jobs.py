@@ -54,11 +54,14 @@ def greedy_solution(context, window_start, window_end, log=True):
 def pick_best_job(flex_jobs, solution, context, last_job_per_machine):
     input_jobs = {job["Id"]: job for job in context["Jobs"]}
     machine_ids =  { machine["Id"] for machine in context["Machines"]}
+    scheduled_ids = {s["JobId"] for s in solution}
 
-    flex_jobs = sort_low_resource_first(flex_jobs)
-    for job in flex_jobs:
+    ready_jobs = [j for j in flex_jobs if precedences_satisfied(j, scheduled_ids)]
+    ready_jobs = sort_low_resource_first(ready_jobs)
 
-        next_start_time_per_machine = calc_next_start_time(job, last_job_per_machine)
+    for job in ready_jobs:
+
+        next_start_time_per_machine = calc_next_start_time(job, last_job_per_machine, solution)
         allowed_machines = job["EligibleMachineIds"]
         for machineId in machine_ids:
             if machineId not in allowed_machines:
@@ -74,7 +77,7 @@ def pick_best_job(flex_jobs, solution, context, last_job_per_machine):
             if resource_available:
                 return job
 
-    return flex_jobs[0]
+    return ready_jobs[0]
 
 def sort_low_resource_first(jobs):
     '''
@@ -84,26 +87,38 @@ def sort_low_resource_first(jobs):
     '''
     return sorted(jobs, key=lambda job: len(job["RequiredResources"]) * sum([resource["Capacity"] for resource in job["RequiredResources"]]))
 
-def calc_next_start_time(job, last_job_per_machine: dict):
+def calc_next_start_time(job, last_job_per_machine: dict, solution):
 
     start_time_per_machine = {}
+    floor = precedence_floor(job, solution)
 
     for machineId, pre_job in last_job_per_machine.items():
-        
+
         if pre_job is not None:
             setup_delay = setup_time_delay(job, pre_job)
-            start_time_per_machine[machineId] = setup_delay + endTime(pre_job)
+            machine_start = setup_delay + endTime(pre_job)
         else:
-            start_time_per_machine[machineId] = job["InitialSetupTime"]
+            machine_start = job["InitialSetupTime"]
+
+        start_time_per_machine[machineId] = max(machine_start, floor)
 
     return start_time_per_machine
 
-def setup_time_delay(job: dict, pre_job: dict): 
+def setup_time_delay(job: dict, pre_job: dict):
     setuptimes = job["JobSetupTimes"]
     return setuptimes[pre_job["JobId"]-1]
 
 def endTime(pre_job):
     return pre_job["StartTime"] + pre_job["ProcessingTime"]
+
+def precedences_satisfied(job, scheduled_ids):
+    return all(p in scheduled_ids for p in job["PrecedenceJobIds"])
+
+def precedence_floor(job, solution):
+    if not job["PrecedenceJobIds"]:
+        return 0
+    end_by_id = {s["JobId"]: s["StartTime"] + s["ProcessingTime"] for s in solution}
+    return max(end_by_id[p] for p in job["PrecedenceJobIds"])
 
 def calc_last_jobs_pre_machine(solution, context, window_start):
     machines = context["Machines"]
@@ -124,7 +139,7 @@ def calc_last_jobs_pre_machine(solution, context, window_start):
 
 def pick_best_machine(job, solution, context, last_job_per_machine):
     machine_ids =  [ machine["Id"] for machine in context["Machines"] if machine["Id"] in job["EligibleMachineIds"] ]
-    start_time_per_machine = calc_next_start_time(job, last_job_per_machine)
+    start_time_per_machine = calc_next_start_time(job, last_job_per_machine, solution)
 
     earlist_start = start_time_per_machine[machine_ids[0]]
     best_machine = machine_ids[0]
