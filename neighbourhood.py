@@ -16,18 +16,16 @@ rand = Random()
 
 def generate_neighbour(solution, input_data):
     jobs_nr = len(solution)
-
+    solution = sorted(solution, key=lambda s: (s["StartTime"], s["MachineId"]))
     for tries in range(10000):
         window_size = 10
         i = rand.randint(0, jobs_nr - 1 - window_size)
-        # j = rand.randint(i + 2, jobs_nr - 1)
         j = i + window_size
-        print("range", j - i, i, j)
 
         context_window = convert_new_context(solution, input_data, i, j)
 
         try:
-            neighbour_window = greedy.greedy_solution(context_window)
+            neighbour_window = greedy.greedy_solution(context_window, log=False)
         except RuntimeError:
             continue
 
@@ -38,6 +36,8 @@ def generate_neighbour(solution, input_data):
             diff = DeepDiff(solution, neighbour, ignore_order=True)
             print(diff)
             print("#" * 10)
+            if diff == {}:
+                continue
             return neighbour
 
     # Fallback: no valid neighbour found.
@@ -61,8 +61,12 @@ def convert_new_context(solution, context, i, j):
     """
     context = copy.deepcopy(context)
     job_window, window_start_time = jobs_in_range(solution, context, i, j)
+    job_window_ids = {j["Id"] for j in job_window}
     for job in job_window:
         job["InitialSetupTime"] = window_start_time
+        job["PrecedenceJobIds"] = [
+            j for j in job["PrecedenceJobIds"] if j in job_window_ids
+        ]
     context_window = context
     context_window["Jobs"] = job_window
     return context_window
@@ -197,6 +201,7 @@ def rebuild_schedule(solution, input_data):
     - resource capacities
     """
     input_jobs = {job["Id"]: job for job in input_data["Jobs"]}
+    input_job_ids = {job["Id"] for job in input_data["Jobs"]}
 
     # Reset start times. They should be calculated from scratch.
     for job in solution:
@@ -233,16 +238,19 @@ def rebuild_schedule(solution, input_data):
                 remaining.remove(job)
                 return None
 
-            # Only schedule this job once all predecessors have already been scheduled.
+            # Only schedule this job once all predecessors have already been scheduled.]
             if not all(
-                pred_id in scheduled and pred_id in solution["JobId"]
+                pred_id in scheduled
                 for pred_id in ctx_job["PrecedenceJobIds"]
+                if pred_id in input_job_ids
             ):
                 continue
 
             # Earliest start due to precedences.
             start_time = 0
             for pred_id in ctx_job["PrecedenceJobIds"]:
+                if pred_id not in input_job_ids:
+                    continue
                 pred = scheduled[pred_id]
                 pred_ctx = input_jobs[pred_id]
                 pred_end = pred["StartTime"] + pred_ctx["ProcessingTime"]

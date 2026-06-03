@@ -14,7 +14,7 @@ timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 rand = Random()
 
 
-def greedy_solution(input_data):
+def greedy_solution(window, context=None, log=True):
     """
     Create an initial valid solution.
 
@@ -24,6 +24,9 @@ def greedy_solution(input_data):
     - rebuild the schedule
     - return the first valid rebuilt schedule
     """
+    input_data = window
+    if context is None:
+        context = window
 
     machines = [m["Id"] for m in input_data["Machines"]]
 
@@ -78,30 +81,28 @@ def greedy_solution(input_data):
         solution = make_solution_with_assignment(mode)
         rebuilt = neighbourhood.rebuild_schedule(solution, input_data)
 
-        if rebuilt is not None and constraints.validate(rebuilt, input_data):
-            print(f"-------- greedy solution found using {mode} assignment --------")
-            print(json.dumps(rebuilt, indent=4))
-            print("----------------")
+        if rebuilt is not None and constraints.validate(rebuilt, context):
+            if log:
+                print(
+                    f"-------- greedy solution found using {mode} assignment --------"
+                )
+                print(json.dumps(rebuilt, indent=4))
+                print("----------------")
             return rebuilt
 
     # Then try random assignments
 
-    print("-----start rebuild path -----------")
-    for attempt in range(500):
-        print(attempt)
+    for attempt in range(10):
         solution = make_solution_with_assignment("random", attempt)
         rebuilt = neighbourhood.rebuild_schedule(solution, input_data)
 
-        if rebuilt is not None:
-            diff = DeepDiff(solution, rebuilt, ignore_order=True)
-            print(diff)
-
-        if rebuilt is not None and constraints.validate(rebuilt, input_data):
-            print(
-                f"-------- greedy solution found using random assignment, attempt {attempt} --------"
-            )
-            print(json.dumps(rebuilt, indent=4))
-            print("----------------")
+        if rebuilt is not None and constraints.validate(rebuilt, context):
+            if log:
+                print(
+                    f"-------- greedy solution found using random assignment, attempt {attempt} --------"
+                )
+                print(json.dumps(rebuilt, indent=4))
+                print("----------------")
             return rebuilt
 
     raise RuntimeError("Could not construct a valid initial greedy solution.")
