@@ -20,39 +20,112 @@ HORIZON_PADDING = 1000
 # --------------------------------------------------------------------------- #
 # Public API
 # --------------------------------------------------------------------------- #
-def greedy_solution(context, log=True):
+def greedy_solution(context, window_start, window_end, log=True):
 
     flex_jobs, frozen_jobs = get_jobs(context)
-    place_frozen(context, frozen_jobs)
-
+    solution = place_frozen(context, frozen_jobs)
     while len(flex_jobs) > 0:
+        last_job_per_machine = calc_last_jobs_pre_machine(solution, context, window_start)
+
+        best_job = pick_best_job(flex_jobs, solution, context, last_job_per_machine)
+        best_macine, start = pick_best_machine(best_job, solution, context, last_job_per_machine)
+
+        frozen_jobs.append(best_job)
+        flex_jobs.remove(best_job)
+
+        best_job["Frozen"] = True
+        best_job["Position"] = {
+            "StartTime": start,
+            "MachineId": best_macine 
+        }
+
+        place_job(best_job, solution)
+
+    if constraints.validate(solution, context):
+        return solution
+    raise RuntimeError("No solution found")
 
 
-
-
-def pick_best_job(flex_jobs, solution, context):
+def pick_best_job(flex_jobs, solution, context, last_job_per_machine):
     input_jobs = {job["Id"]: job for job in context["Jobs"]}
+    machine_ids =  { machine["Id"] for machine in context["Machines"]}
 
+    flex_jobs = sort_low_resource_first(flex_jobs)
     for job in flex_jobs:
 
-        next_start_time =
-        resource_available = resources_available_for_job(
-            job,
-            next_start_time,
-            solution,
-            context,
-            input_jobs
-        )
-        if resource_available:
-            return job
+        next_start_time_per_machine = calc_next_start_time(job, last_job_per_machine)
+        for machineId in machine_ids:
+            resource_available = resources_available_for_job(
+                job,
+                next_start_time_per_machine[machineId],
+                solution,
+                context,
+                input_jobs
+            )
+            if resource_available:
+                return job
+
+    return flex_jobs[0]
+
+def sort_low_resource_first(jobs):
+    '''
+    Sort the list of jobs, by resource capacity
+    number of required resources * sum of all resource capcity
+    This will always check resource intense jobs first
+    '''
+    return sorted(jobs, key=lambda job: len(job["RequiredResources"]) * sum([resource["Capacity"] for resource in job["RequiredResources"]]))
+
+def calc_next_start_time(job, last_job_per_machine: dict):
+
+    start_time_per_machine = {}
+
+    for machineId, pre_job in last_job_per_machine.items():
+        
+        if pre_job is not None:    
+            setup_delay = setup_time_delay(job, pre_job)
+            start_time_per_machine[machineId] = setup_delay + endTime(pre_job)
+        else:
+            start_time_per_machine[machineId] = 0
+
+    return start_time_per_machine
+
+def setup_time_delay(job: dict, pre_job: dict): 
+    setuptimes = job["JobSetupTimes"]
+    return setuptimes[pre_job["JobId"]-1]
+
+def endTime(pre_job):
+    return pre_job["StartTime"] + pre_job["ProcessingTime"]
+
+def calc_last_jobs_pre_machine(solution, context, window_start):
+    machines = context["Machines"]
+    last_job_per_maching = { machine["Id"]: None for machine in machines}
+    solution = sorted(solution, key=lambda job: (job["MachineId"], job["StartTime"]))
+    for job in solution:
+        end_time = job["StartTime"] + job["ProcessingTime"]
+        start_time = job["StartTime"]
+        if start_time < window_start and window_start < end_time:
+            machineId = job["MachineId"]
+            last_job_per_maching[machineId] = job
+        elif end_time < window_start:
+            machineId = job["MachineId"]
+            last_job_per_maching[machineId] = job
+            
+    return last_job_per_maching
 
 
-    return flex_jobs[-1]
+def pick_best_machine(job, solution, context, last_job_per_machine):
+    machine_ids =  [ machine["Id"] for machine in context["Machines"] ]
+    next_start_time_per_machine = calc_next_start_time(job, last_job_per_machine)
 
-def calc_next_start_time(job, pre_job)
-
-def pick_best_machine(job, solution, context):
-    return 0
+    earlist_start = machine_ids[0]
+    best_machine = next_start_time_per_machine[machine_ids[0]]
+    for machine in machine_ids[1:]:
+        start = next_start_time_per_machine[machine]
+        if earlist_start < start:
+            earlist_start = start
+            best_machine = machine
+        
+    return best_machine, earlist_start
 
 
 def place_frozen(context, frozen_jobs):
@@ -76,11 +149,29 @@ def place_frozen(context, frozen_jobs):
         )
     return solution
 
+def place_job(job, solution):
+    start_time = job["Position"]["StartTime"]
+    machine = job["Position"]["MachineId"]
+    processing_time = job["ProcessingTime"]
+    due_time = job["DueTime"]
+    job_id = job["Id"]
+
+    solution.append(
+        {
+            "JobId": job_id,
+            "StartTime": start_time,
+            "MachineId": machine,
+            "ProcessingTime": processing_time,
+            "DueTime": due_time
+        }
+    )
+    return solution
+
 
 def get_jobs(context):
     frozen_jobs = []
     flex_jobs = []
-    for job in context["Jobs"]
+    for job in context["Jobs"]:
         frozen = job["Frozen"]
         if frozen is not None and frozen == True:
             frozen_jobs.append(job)
