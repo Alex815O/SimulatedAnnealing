@@ -24,7 +24,7 @@ def generate_neighbour(solution, input_data):
         context_window, window_start_time = convert_new_context(solution, input_data, i, j)
 
         try:
-            neighbour = greedy.greedy_solution(context_window, window_start_time, -1, log=False)
+            neighbour = greedy.greedy_solution(context_window, window_start_time, -1, log=True)
         except RuntimeError:
             print("not found")
             continue

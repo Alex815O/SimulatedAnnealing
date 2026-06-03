@@ -40,7 +40,9 @@ def greedy_solution(context, window_start, window_end, log=True):
         }
 
         place_job(best_job, solution)
-
+    
+    if log:
+        print(json.dumps(solution, indent=4))
     if constraints.validate(solution, context):
         return solution
     raise RuntimeError("No solution found")
@@ -54,7 +56,11 @@ def pick_best_job(flex_jobs, solution, context, last_job_per_machine):
     for job in flex_jobs:
 
         next_start_time_per_machine = calc_next_start_time(job, last_job_per_machine)
+        allowed_machines = job["EligibleMachineIds"]
         for machineId in machine_ids:
+            if machineId not in allowed_machines:
+                continue
+
             resource_available = resources_available_for_job(
                 job,
                 next_start_time_per_machine[machineId],
@@ -114,14 +120,14 @@ def calc_last_jobs_pre_machine(solution, context, window_start):
 
 
 def pick_best_machine(job, solution, context, last_job_per_machine):
-    machine_ids =  [ machine["Id"] for machine in context["Machines"] ]
-    next_start_time_per_machine = calc_next_start_time(job, last_job_per_machine)
+    machine_ids =  [ machine["Id"] for machine in context["Machines"] if machine["Id"] in job["EligibleMachineIds"] ]
+    start_time_per_machine = calc_next_start_time(job, last_job_per_machine)
 
-    earlist_start = machine_ids[0]
-    best_machine = next_start_time_per_machine[machine_ids[0]]
+    earlist_start = start_time_per_machine[machine_ids[0]]
+    best_machine = machine_ids[0]
     for machine in machine_ids[1:]:
-        start = next_start_time_per_machine[machine]
-        if earlist_start < start:
+        start = start_time_per_machine[machine]
+        if earlist_start > start:
             earlist_start = start
             best_machine = machine
         
