@@ -14,15 +14,25 @@ def validate(solution, context) -> bool:
     instance_data = copy.deepcopy(context)
     sol_data = {"Jobs": copy.deepcopy(solution), "Feasible": True}
 
-    check_machine_eligibility(instance_data, sol_data)
+    check_machine_eligibility(
+        instance_data, sol_data
+    )  # ignore, only swap on the same machine
 
-    check_no_job_overlap(instance_data, sol_data)
+    check_no_job_overlap(
+        instance_data, sol_data
+    )  # move all jobs to the back ... what happens with other machines ... we do not care, only resources are shared, and they are checked seperatly ... what if the resources does not fit anymore... then we would need to rebuild... that would happend often
 
-    check_job_precedences(instance_data, sol_data)
+    check_job_precedences(
+        instance_data, sol_data
+    )  # find first starting point, and start the search for all other after thisone timestamp
 
-    check_setup_times(instance_data, sol_data)
+    check_setup_times(
+        instance_data, sol_data
+    )  # just do the check and retry on false ... will not cause issues often ... maybe it is easy to just move the job stack to the back
 
-    check_resource_availabilities(instance_data, sol_data)
+    check_resource_availabilities(
+        instance_data, sol_data
+    )  # erstelle eine Liste von Jobs welche durch einen Tausch einen korrekte Resource Bedinung haben
 
     tardiness = calculate_tardiness(instance_data, sol_data)
     makespan = calculate_makespan(instance_data, sol_data)

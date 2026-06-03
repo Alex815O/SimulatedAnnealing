@@ -7,7 +7,7 @@ from random import Random
 
 import constraints
 import greedy
-import neighbourhood
+import neighbourhood_greedy_window_change
 import perprocessing
 import visualize_logs
 
@@ -56,7 +56,9 @@ def simulated_annealing(input_data: dict):
     attempt = 0
     while T > T_min:
         for t in range(max_attempts):
-            neighbour = neighbourhood.generate_neighbour(current, input_data)
+            neighbour = neighbourhood_greedy_window_change.generate_neighbour(
+                current, input_data
+            )
             neighbour_score = evaluate(neighbour, input_data)
 
             if accept_neighbour(current_score, neighbour_score, T):
