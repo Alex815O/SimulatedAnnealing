@@ -24,11 +24,12 @@ def greedy_solution(context, window_start, window_end, log=True):
 
     flex_jobs, frozen_jobs = get_jobs(context)
     solution = place_frozen(context, frozen_jobs)
-    while len(flex_jobs) > 0:
-        last_job_per_machine = calc_last_jobs_pre_machine(solution, context, window_start)
 
+    last_job_per_machine = calc_last_jobs_pre_machine(solution, context, window_start)
+
+    while len(flex_jobs) > 0:
         best_job = pick_best_job(flex_jobs, solution, context, last_job_per_machine)
-        best_macine, start = pick_best_machine(best_job, solution, context, last_job_per_machine)
+        best_machine, start = pick_best_machine(best_job, solution, context, last_job_per_machine)
 
         frozen_jobs.append(best_job)
         flex_jobs.remove(best_job)
@@ -36,11 +37,13 @@ def greedy_solution(context, window_start, window_end, log=True):
         best_job["Frozen"] = True
         best_job["Position"] = {
             "StartTime": start,
-            "MachineId": best_macine 
+            "MachineId": best_machine
         }
 
-        place_job(best_job, solution)
-    
+        placed = place_job(best_job, solution)
+
+        last_job_per_machine[best_machine] = placed
+
     if log:
         print(json.dumps(solution, indent=4))
     if constraints.validate(solution, context):
@@ -87,11 +90,11 @@ def calc_next_start_time(job, last_job_per_machine: dict):
 
     for machineId, pre_job in last_job_per_machine.items():
         
-        if pre_job is not None:    
+        if pre_job is not None:
             setup_delay = setup_time_delay(job, pre_job)
             start_time_per_machine[machineId] = setup_delay + endTime(pre_job)
         else:
-            start_time_per_machine[machineId] = 0
+            start_time_per_machine[machineId] = job["InitialSetupTime"]
 
     return start_time_per_machine
 
@@ -162,16 +165,15 @@ def place_job(job, solution):
     due_time = job["DueTime"]
     job_id = job["Id"]
 
-    solution.append(
-        {
-            "JobId": job_id,
-            "StartTime": start_time,
-            "MachineId": machine,
-            "ProcessingTime": processing_time,
-            "DueTime": due_time
-        }
-    )
-    return solution
+    entry = {
+        "JobId": job_id,
+        "StartTime": start_time,
+        "MachineId": machine,
+        "ProcessingTime": processing_time,
+        "DueTime": due_time
+    }
+    solution.append(entry)
+    return entry
 
 
 def get_jobs(context):
