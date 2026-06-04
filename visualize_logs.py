@@ -32,7 +32,7 @@ plt.ion()
 plt.show(block=False)
 
 
-def update(score, temperature):
+def update(score, temperature, file=None):
     """Update the plot with new score and temperature values."""
     global score_x_data, score_y_data, temp_x_data, temp_y_data
     
@@ -56,3 +56,8 @@ def update(score, temperature):
     # Redraw
     fig.canvas.draw()
     fig.canvas.flush_events()
+
+    # Persist the current figure to disk if a target file was given.
+    if file is not None:
+        fig.savefig(file)
+

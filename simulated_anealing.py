@@ -73,10 +73,11 @@ def simulated_annealing(input_data: dict):
         attempt += 1
         T *= alpha
 
+    log_result(best, current_score, T, -1, -1, persist=True)
     return best
 
 
-def log_result(solution, score, T, t, attemts):
+def log_result(solution, score, T, t, attemts, persist=False):
     log_message = (
         f"[{timestamp}] "
         f"Attempt: {attemts:4d} | "
@@ -89,7 +90,11 @@ def log_result(solution, score, T, t, attemts):
 
     with open("sa_log.txt", "a") as f:
         f.write(f"{attemts},{T},{t}, {score},{timestamp}\n")
-    visualize_logs.update(score, T)
+    graph_file = None
+    if persist:
+        file_timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        graph_file = f"graph_{score:.4f}_{file_timestamp}.png"
+    visualize_logs.update(score, T, graph_file)
 
 
 def main():

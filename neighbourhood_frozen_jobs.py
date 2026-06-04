@@ -17,7 +17,7 @@ def generate_neighbour(solution, input_data):
     solution = sorted(solution, key=lambda s: (s["StartTime"], s["MachineId"]))
     for tries in range(10000):
         print(tries)
-        window_size = 2
+        window_size = rand.randint(3, jobs_nr//3)
         i = rand.randint(0, jobs_nr - 1 - window_size)
         j = i + window_size
 
