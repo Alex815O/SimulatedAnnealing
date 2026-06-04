@@ -6,20 +6,8 @@ import constraints
 
 timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-# Greedy criteria for picking the next job out of the available set.
-#   "spt" -> shortest processing time (default, as in the reference algorithm)
-#   "due" -> earliest due time
-#   "est" -> earliest possible start time on any eligible machine
-GREEDY_CRITERIA = ("spt", "due", "est")
-
-# Safety padding added on top of the schedule horizon estimate.
-HORIZON_PADDING = 1000
 
 
-
-# --------------------------------------------------------------------------- #
-# Public API
-# --------------------------------------------------------------------------- #
 def greedy_solution(context, window_start, window_end, log=True):
 
     flex_jobs, frozen_jobs = get_jobs(context)
