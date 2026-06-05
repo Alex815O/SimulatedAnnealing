@@ -7,15 +7,25 @@ from random import Random
 
 import constraints
 import greedy
-import neighbourhood_frozen_jobs as neighbourhood
 import perprocessing
 import visualize_logs
+from neighbourhood_frozen_jobs import FrozenNeighbour
 
 timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 rand = Random()
 
 
-hyperparam: dict = {"T_max": 1000, "T_min": 10, "max_attemts": 10, "alpha": 0.95}
+hyperparam: dict = {
+    "T_max": 1000,
+    "T_min": 10,
+    "max_attemts": 10,
+    "alpha": 0.95,
+    "window_size_min": 3,
+    "window_size_max": 10,
+    "window_size_divident": 2,
+    "window_size": 8,
+    "window_size_strategy": "relative",
+}
 
 
 def read_input(file_path):
@@ -47,6 +57,14 @@ def simulated_annealing(input_data: dict):
     max_attempts = hyperparam["max_attemts"]
     alpha = hyperparam["alpha"]
 
+    neighbourhood = FrozenNeighbour(
+        window_size_min=hyperparam["window_size_min"],
+        window_size_max=hyperparam["window_size_max"],
+        window_size_divident=hyperparam["window_size_divident"],
+        window_size=hyperparam["window_size"],
+        window_size_strategy=hyperparam["window_size_strategy"],
+    )
+
     current = greedy.greedy_solution(input_data)
     current_score = evaluate(current, input_data)
 
@@ -56,9 +74,7 @@ def simulated_annealing(input_data: dict):
     attempt = 0
     while T > T_min:
         for t in range(max_attempts):
-            neighbour = neighbourhood.generate_neighbour(
-                current, input_data
-            )
+            neighbour = neighbourhood.generate_neighbour(current, input_data)
             neighbour_score = evaluate(neighbour, input_data)
 
             if accept_neighbour(current_score, neighbour_score, T):
