@@ -8,7 +8,7 @@ from random import Random
 from deepdiff import DeepDiff
 
 import constraints
-import neighbourhood_greedy_window_change
+import greedy_frozen_jobs as greedyF
 
 timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 rand = Random()
@@ -78,6 +78,7 @@ def greedy_solution(window, context=None, log=True):
 
     # Try deterministic strategies first
     for mode in ["balanced", "first"]:
+        print(mode)
         solution = make_solution_with_assignment(mode)
         rebuilt = rebuild_schedule(solution, input_data)
 
@@ -90,9 +91,30 @@ def greedy_solution(window, context=None, log=True):
                 print("----------------")
             return rebuilt
 
+    # Try greed frozen, without frozen:
+    frozen_jobs = []
+    for job in context["Jobs"]:
+        job["Frozen"] = False
+        frozen_jobs.append(job)    
+    context["Jobs"] = frozen_jobs
+
+    for attempt in range(10):
+        print("Greedy Frozen: ", attempt)
+        solution = greedyF.greedy_solution(input_data, 0, -1, True)
+
+        if constraints.validate(rebuilt, context):
+            if log:
+                print(
+                    f"-------- greedy solution found using greed frozen assignment, attempt {attempt} --------"
+                )
+                print(json.dumps(rebuilt, indent=4))
+                print("----------------")
+            return rebuilt
+        
     # Then try random assignments
 
     for attempt in range(10):
+        print("Random: ", attempt)
         solution = make_solution_with_assignment("random", attempt)
         rebuilt = rebuild_schedule(solution, input_data)
 

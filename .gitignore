@@ -1,8 +1,13 @@
 .venv
 .zed
+<<<<<<< HEAD
 .idea
 .claude
 __pycache__
 
 *error.log
 tmp.json
+=======
+
+*.log
+>>>>>>> e5741b9e787d0b86bc05a7fceeb1643cc3672fd9

@@ -1,0 +1,26 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python: Aktuelle Datei (uv venv)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "python": "${workspaceFolder}/.venv/Scripts/python.exe",
+      "cwd": "${workspaceFolder}",
+      "justMyCode": true
+    },
+    {
+      "name": "Python: simulated_anealing.py (ToyInstance)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/simulated_anealing.py",
+      "args": ["data/ToyInstance.json"],
+      "console": "integratedTerminal",
+      "python": "${workspaceFolder}/.venv/Scripts/python.exe",
+      "cwd": "${workspaceFolder}",
+      "justMyCode": true
+    }
+  ]
+}

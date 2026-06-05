@@ -1,11 +1,12 @@
 import copy
 import datetime
 from random import Random
+import json
 
 from deepdiff import DeepDiff
 
 import constraints
-import greedy
+import greedy_frozen_jobs as greedy
 
 timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 rand = Random()
@@ -16,19 +17,18 @@ def generate_neighbour(solution, input_data):
     solution = sorted(solution, key=lambda s: (s["StartTime"], s["MachineId"]))
     for tries in range(10000):
         print(tries)
-        window_size = 20
+        window_size = rand.randint(3, jobs_nr//3)
         i = rand.randint(0, jobs_nr - 1 - window_size)
         j = i + window_size
 
-        context_window = convert_new_context(solution, input_data, i, j)
+        context_window, window_start_time = convert_new_context(solution, input_data, i, j)
 
         try:
-            neighbour_window = greedy.greedy_solution(context_window, log=False)
+            neighbour = greedy.greedy_solution(context_window, window_start_time, -1, log=True)
         except RuntimeError:
             print("not found")
             continue
 
-        neighbour = replace_jobs_in_solution(solution, neighbour_window)
 
         if constraints.validate(neighbour, input_data):
             print("#" * 10)
@@ -45,31 +45,29 @@ def generate_neighbour(solution, input_data):
     return copy.deepcopy(solution)
 
 
-def replace_jobs_in_solution(solution, neighbour_window):
-    neighbour = []
-    for job_sol in solution:
-        job_nei = [j for j in neighbour_window if j["JobId"] == job_sol["JobId"]]
-        if len(job_nei) == 0:
-            neighbour.append(job_sol)
-        else:
-            neighbour.append(job_nei[0])
-    return neighbour
-
-
 def convert_new_context(solution, context, i, j):
     """
-    creates a new context with reduced number of jobs, so the greedy algorithmn can be reused
+    creates a new context which defines all jobs as frozen, which are not in
+    the window i-j. 
     """
     context = copy.deepcopy(context)
-    job_window, _ = jobs_in_range(solution, context, i, j)
+    job_window, window_start_time = jobs_in_range(solution, context, i, j)
     job_window_ids = {j["Id"] for j in job_window}
-    for job in job_window:
-        job["PrecedenceJobIds"] = [
-            j for j in job["PrecedenceJobIds"] if j in job_window_ids
-        ]
-    context_window = context
-    context_window["Jobs"] = job_window
-    return context_window
+
+    solution_by_job_id = {sol["JobId"]: sol for sol in solution}
+
+    for job in context["Jobs"]:
+        if job["Id"] not in job_window_ids:
+            sol = solution_by_job_id[job["Id"]]
+            job["Frozen"] = True
+            job["Position"] = {
+                "StartTime": sol["StartTime"],
+                "MachineId": sol["MachineId"],
+            }
+        else:
+            job["Frozen"] = False
+
+    return context, window_start_time
 
 
 def jobs_in_range(solution, context, i, j):
