@@ -1,2 +1,8 @@
 .venv
 .zed
+.idea
+.claude
+__pycache__
+
+*error.log
+tmp.json
