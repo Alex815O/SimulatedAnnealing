@@ -23,8 +23,9 @@ hyperparam: dict = {
     "window_size_min": 3,
     "window_size_max": 10,
     "window_size_divident": 2,
-    "window_size": 8,
-    "window_size_strategy": "relative",
+    "window_size": 3,
+    "window_size_strategy": "fixed",
+    "attemts_for_neighbour": 1000,
 }
 
 
@@ -63,6 +64,7 @@ def simulated_annealing(input_data: dict):
         window_size_divident=hyperparam["window_size_divident"],
         window_size=hyperparam["window_size"],
         window_size_strategy=hyperparam["window_size_strategy"],
+        attemts_for_neighbour=hyperparam["attemts_for_neighbour"],
     )
 
     current = greedy.greedy_solution(input_data)

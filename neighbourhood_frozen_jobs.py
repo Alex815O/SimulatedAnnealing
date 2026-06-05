@@ -17,6 +17,7 @@ class FrozenNeighbour:
         window_size_divident=2,
         window_size=8,
         window_size_strategy="relative",
+        attemts_for_neighbour=10000,
     ) -> None:
         """
         window_size_strategy -> random, fixed, relative
@@ -28,15 +29,16 @@ class FrozenNeighbour:
         self.window_size_strategy = window_size_strategy
         self.window_size_divident = window_size_divident
         self.my_window_size = window_size
+        self.attemts_for_neighbour = attemts_for_neighbour
 
     def generate_neighbour(self, solution, input_data):
         jobs_nr = len(solution)
         solution = sorted(solution, key=lambda s: (s["StartTime"], s["MachineId"]))
-        for tries in range(10000):
+        for tries in range(self.attemts_for_neighbour):
             print(tries)
-            my_window_size = self.window_size(jobs_nr)
-            i = self.rand.randint(0, jobs_nr - 1 - my_window_size)
-            j = i + my_window_size
+            wsize = self.window_size(jobs_nr)
+            i = self.rand.randint(0, jobs_nr - 1 - wsize)
+            j = i + wsize
 
             context_window, window_start_time = self.convert_new_context(
                 solution, input_data, i, j
