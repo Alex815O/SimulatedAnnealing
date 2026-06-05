@@ -2,103 +2,76 @@ import copy
 import datetime
 from random import Random
 
-from deepdiff import DeepDiff
-
 import constraints
 import greedy
 
-timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-rand = Random()
 
+class SingleChangeNeighbour:
+    def __init__(self, hyperparam: dict) -> None:
+        self.timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.rand = Random()
+        self.attemts_for_neighbour = hyperparam.get("attemts_for_neighbour", 10000)
+        self.swap_order_weight = hyperparam.get("swap_order_weight", 2)
+        self.change_machine_weight = hyperparam.get("change_machine_weight", 1)
 
-def generate_neighbour(solution, input_data):
-    jobs_nr = len(solution)
+    def generate_neighbour(self, solution, input_data):
+        jobs_nr = len(solution)
+        move_pool = ["swap_order"] * self.swap_order_weight + [
+            "change_machine"
+        ] * self.change_machine_weight
 
-    for tries in range(10000):
-        neighbour = copy.deepcopy(solution)
+        for tries in range(self.attemts_for_neighbour):
+            neighbour = copy.deepcopy(solution)
 
-        move_type = rand.choice(["swap_order", "swap_order", "change_machine"])
-        print(tries, move_type)
-        if move_type == "swap_order":
-            neighbour = swap_order_on_same_machine(neighbour, input_data)
-        elif move_type == "change_machine":
-            neighbour = swap_machine(neighbour, input_data, jobs_nr)
+            move_type = self.rand.choice(move_pool)
+            print(tries, move_type)
+            if move_type == "swap_order":
+                neighbour = self.swap_order_on_same_machine(neighbour, input_data)
+            elif move_type == "change_machine":
+                neighbour = self.swap_machine(neighbour, input_data, jobs_nr)
 
-        if neighbour is None:
-            continue
+            if neighbour is None:
+                continue
 
-        rebuilt = rebuild_schedule(neighbour, input_data)
+            rebuilt = greedy.rebuild_schedule(neighbour, input_data)
 
-        # if rebuilt is not None:
-        #     diff = DeepDiff(solution, rebuilt, ignore_order=True)
-        #     print(diff)
+            if rebuilt is not None and constraints.validate(rebuilt, input_data):
+                return rebuilt
 
-        if rebuilt is not None and constraints.validate(rebuilt, input_data):
-            return rebuilt
+        # Fallback: no valid neighbour found.
+        return copy.deepcopy(solution)
 
-    # Fallback: no valid neighbour found.
-    return copy.deepcopy(solution)
+    def swap_order_on_same_machine(self, solution, context):
+        indices_by_machine = {}
+        for idx, job in enumerate(solution):
+            indices_by_machine.setdefault(job["MachineId"], []).append(idx)
 
+        swappable = [idxs for idxs in indices_by_machine.values() if len(idxs) >= 2]
+        if not swappable:
+            return None
 
-def swap_order_on_same_machine(solution, context):
-    jobs_of_machine = {}
-    for job in solution:
-        jobs_of_machine[job["MachineId"]] = job
+        idxs = self.rand.choice(swappable)
+        i, j = self.rand.sample(idxs, 2)
 
-    random_machine = rand.randint(
-        1, len(context["Machines"])
-    )  # MachinId startet mit 1 und es is dict, ned list
+        solution[i], solution[j] = solution[j], solution[i]
+        return solution
 
-    jobs_of_rand_machine = jobs_of_machine[random_machine]
-    jobs_nr_of_machine = len(jobs_of_rand_machine)
-    i = rand.randrange(jobs_nr_of_machine)
-    j = rand.randrange(jobs_nr_of_machine)
+    def swap_machine(self, solution, context, jobs_nr):
+        i = self.rand.randrange(jobs_nr)
+        job_id = solution[i]["JobId"]
 
-    if i == j:
-        return None
+        ctx_job = next(job for job in context["Jobs"] if job["Id"] == job_id)
+        eligible_machines = ctx_job["EligibleMachineIds"]
 
-    return switch_jobs(solution, i, j)
+        # If there is only one eligible machine, this move cannot change anything.
+        if len(eligible_machines) <= 1:
+            return None
 
+        current_machine = solution[i]["MachineId"]
+        possible_machines = [m for m in eligible_machines if m != current_machine]
 
-def switch_jobs(solution, job_to_move, job_to_switch):
-    solution[job_to_switch]["StartTime"], solution[job_to_move]["StartTime"] = (
-        solution[job_to_move]["StartTime"],
-        solution[job_to_switch]["StartTime"],
-    )
-    solution[job_to_switch]["MachineId"], solution[job_to_move]["MachineId"] = (
-        solution[job_to_move]["MachineId"],
-        solution[job_to_switch]["MachineId"],
-    )
-    (
-        solution[job_to_switch]["ProcessingTime"],
-        solution[job_to_move]["ProcessingTime"],
-    ) = (
-        solution[job_to_move]["ProcessingTime"],
-        solution[job_to_switch]["ProcessingTime"],
-    )
-    solution[job_to_switch]["DueTime"], solution[job_to_move]["DueTime"] = (
-        solution[job_to_move]["DueTime"],
-        solution[job_to_switch]["DueTime"],
-    )
-    return solution
+        if not possible_machines:
+            return None
 
-
-def swap_machine(solution, context, jobs_nr):
-    i = rand.randrange(jobs_nr)
-    job_id = solution[i]["JobId"]
-
-    ctx_job = next(job for job in context["Jobs"] if job["Id"] == job_id)
-    eligible_machines = ctx_job["EligibleMachineIds"]
-
-    # If there is only one eligible machine, this move cannot change anything.
-    if len(eligible_machines) <= 1:
-        return None
-
-    current_machine = solution[i]["MachineId"]
-    possible_machines = [m for m in eligible_machines if m != current_machine]
-
-    if not possible_machines:
-        return None
-
-    solution[i]["MachineId"] = rand.choice(possible_machines)
-    return solution
+        solution[i]["MachineId"] = self.rand.choice(possible_machines)
+        return solution

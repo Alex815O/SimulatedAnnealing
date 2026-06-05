@@ -3,13 +3,16 @@ import datetime
 import json
 import math
 import sys
+from operator import ne
 from random import Random
 
 import constraints
 import greedy
+import neighbourhood_single_change as SingleChangeNeihbour
 import perprocessing
 import visualize_logs
 from neighbourhood_frozen_jobs import FrozenNeighbour
+from neighbourhood_single_change import SingleChangeNeighbour
 
 timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 rand = Random()
@@ -23,9 +26,10 @@ hyperparam: dict = {
     "window_size_min": 3,
     "window_size_max": 10,
     "window_size_divident": 2,
-    "window_size": 3,
+    "window_size": 8,
     "window_size_strategy": "fixed",
     "attemts_for_neighbour": 1000,
+    "small_instance_threshold": 20,
 }
 
 
@@ -58,14 +62,8 @@ def simulated_annealing(input_data: dict):
     max_attempts = hyperparam["max_attemts"]
     alpha = hyperparam["alpha"]
 
-    neighbourhood = FrozenNeighbour(
-        window_size_min=hyperparam["window_size_min"],
-        window_size_max=hyperparam["window_size_max"],
-        window_size_divident=hyperparam["window_size_divident"],
-        window_size=hyperparam["window_size"],
-        window_size_strategy=hyperparam["window_size_strategy"],
-        attemts_for_neighbour=hyperparam["attemts_for_neighbour"],
-    )
+    jobs_nr = len(input_data["Jobs"])
+    neighbourhood = deceide_neighbourhood(jobs_nr)
 
     current = greedy.greedy_solution(input_data)
     current_score = evaluate(current, input_data)
@@ -93,6 +91,15 @@ def simulated_annealing(input_data: dict):
 
     log_result(best, current_score, T, -1, -1, persist=True)
     return best
+
+
+def deceide_neighbourhood(jobs_nr):
+    if jobs_nr <= hyperparam["small_instance_threshold"]:
+        print("Using SingleChangeNeighbour")
+        return SingleChangeNeighbour(hyperparam)
+    else:
+        print("Using FrozenNeighbour.")
+        return FrozenNeighbour(hyperparam)
 
 
 def log_result(solution, score, T, t, attemts, persist=False):

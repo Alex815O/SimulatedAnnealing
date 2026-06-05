@@ -63,7 +63,8 @@ Wie?
 • Beispiel Job Scheduling:
 ▪ Wenn zwei Jobs auf Maschine 1 überschneiden: Score = Makespan + 1000 (hohe Strafe).
 ▪ Wenn ein Job auf einer unerlaubten Maschine läuft: Score = Makespan + 10000 (noch höhere Strafe).
-Vorteile: ✅ Einfache Nachbarschaftsfunktion (muss keine Constraints prüfen). ✅ SA kann ungültige Lösungen akzeptieren → Kann aus ungültigen Bereichen herausfinden. ✅ Flexibel – funktioniert auch mit komplexen Constraints.
+Vorteile: ✅ Einfache Nachbarschaftsfunktion (muss keine Constraints prüfen). ✅ SA kann ungültige Lösungen akzeptieren → Kann aus ungültigen Bereichen heraus
+en. ✅ Flexibel – funktioniert auch mit komplexen Constraints.
 Nachteile: ❌ Strafe muss gut kalibriert sein:
 • Zu niedrig → SA akzeptiert zu viele invalid Solutions.
 • Zu hoch → SA vermeidet alle invalid Solutions (wie Strategie 1, aber ineffizienter). ❌ Evaluation wird langsamer (muss alle Constraints prüfen).
@@ -84,7 +85,27 @@ Wie?
 Vorteile: ✅ Nachbarschaftsfunktion bleibt einfach (generiert zuerst beliebige Nachbarn). ✅ SA bleibt im gültigen Suchraum (nach der Reparatur). ✅ Keine Strafterme nötig → Evaluation bleibt einfach.
 Nachteile: ❌ Reparatur kann aufwendig sein (z. B. NP-schwer bei komplexen Constraints). ❌ Reparatur könnte die Lösung stark verändern → Der Nachbar ist nicht mehr eine kleine Änderung der ursprünglichen Lösung. ❌ Schwierig zu garantieren, dass die Reparatur immer funktioniert.
 ```
+### Greedy On Range
+Idee: a random range (start time of job i and end time of job j) and rearrange those jobs.
+Required:
+- [ ] a new greed solution
+- [ ] a converter, which takes a list of jobs, and creats a new context
+- [ ] a range picking
 
+Greedy Strategy: (this if fucking hard)
+- group by machine, even distribution of jobs per maching 
+  - if len(allowedMaching) > 1 then take the machine bucket with less jobs
+- sort by (nr of prejobs) in the group
+- while prejobsConstraints are unsat:
+  - foreach job in order: 
+    - are prejobs constraints sat?
+      - yes -> continue
+      - No  -> 
+        - if on same machine -> switch order with violated job and break (restart loop)
+        - else -> move job to the end of the list and break
+- build schedule by calculating start and endtime, also consider setuptimes (ignore inital setup time, this violation is rare)
+- 
+- 
 ## Greedy Solution
 Logik:
  1. Maschinenauswahl: Jeder Job bekommt die erste erlaubte Maschine (EligibleMachineIds[0])

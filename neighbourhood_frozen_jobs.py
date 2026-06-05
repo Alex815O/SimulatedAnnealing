@@ -10,26 +10,24 @@ import greedy_frozen_jobs as greedy
 
 
 class FrozenNeighbour:
-    def __init__(
-        self,
-        window_size_min=3,
-        window_size_max=10,
-        window_size_divident=2,
-        window_size=8,
-        window_size_strategy="relative",
-        attemts_for_neighbour=10000,
-    ) -> None:
+    def __init__(self, hyperparam: dict) -> None:
         """
-        window_size_strategy -> random, fixed, relative
+        Relevant hyperparam fields:
+            window_size_min       -> lower bound for random/relative window size
+            window_size_max       -> upper bound for random window size
+            window_size_divident  -> divisor of jobs_nr for relative window size
+            window_size           -> fixed window size
+            window_size_strategy  -> random, fixed, relative
+            attemts_for_neighbour -> number of tries to find a valid neighbour
         """
         self.timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.rand = Random()
-        self.window_size_min = window_size_min
-        self.window_size_max = window_size_max
-        self.window_size_strategy = window_size_strategy
-        self.window_size_divident = window_size_divident
-        self.my_window_size = window_size
-        self.attemts_for_neighbour = attemts_for_neighbour
+        self.window_size_min = hyperparam.get("window_size_min", 3)
+        self.window_size_max = hyperparam.get("window_size_max", 10)
+        self.window_size_strategy = hyperparam.get("window_size_strategy", "relative")
+        self.window_size_divident = hyperparam.get("window_size_divident", 2)
+        self.my_window_size = hyperparam.get("window_size", 8)
+        self.attemts_for_neighbour = hyperparam.get("attemts_for_neighbour", 10000)
 
     def generate_neighbour(self, solution, input_data):
         jobs_nr = len(solution)
