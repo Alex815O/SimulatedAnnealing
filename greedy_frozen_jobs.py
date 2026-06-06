@@ -16,8 +16,12 @@ def greedy_solution(context, window_start, window_end, log=True):
     last_job_per_machine = calc_last_jobs_pre_machine(solution, context, window_start)
 
     while len(flex_jobs) > 0:
-        best_job = pick_best_job(flex_jobs, solution, context, last_job_per_machine)
-        best_machine, start = pick_best_machine(best_job, solution, context, last_job_per_machine)
+        best_job, best_machine, start = pick_next_placement(
+        flex_jobs,
+        solution,
+        context,
+        last_job_per_machine,
+        )
 
         frozen_jobs.append(best_job)
         flex_jobs.remove(best_job)
@@ -38,6 +42,63 @@ def greedy_solution(context, window_start, window_end, log=True):
         return solution
     raise RuntimeError("No solution found")
 
+
+def pick_next_placement(flex_jobs, solution, context, last_job_per_machine):
+    input_jobs = {job["Id"]: job for job in context["Jobs"]}
+    scheduled_ids = {s["JobId"] for s in solution}
+
+    ready_jobs = [j for j in flex_jobs if precedences_satisfied(j, scheduled_ids)]
+
+    if not ready_jobs:
+        raise RuntimeError("No ready job found although flexible jobs remain")
+
+    # Try more resource-constrained jobs first.
+    ready_jobs = sorted(
+        ready_jobs,
+        key=lambda job: (
+            -len(job["RequiredResources"]),
+            -sum(req["Capacity"] for req in job["RequiredResources"]),
+            job["DueTime"],
+        ),
+    )
+
+    best_candidate = None
+
+    for job in ready_jobs:
+        start_time_per_machine = calc_next_start_time(
+            job,
+            last_job_per_machine,
+            solution,
+        )
+
+        for machine_id in job["EligibleMachineIds"]:
+            earliest_start = start_time_per_machine[machine_id]
+
+            feasible_start = find_resource_feasible_start(
+                job,
+                earliest_start,
+                solution,
+                context,
+                input_jobs,
+                max_shift=10000,
+            )
+
+            if feasible_start is None:
+                continue
+
+            candidate = (job, machine_id, feasible_start)
+
+            if best_candidate is None:
+                best_candidate = candidate
+            else:
+                _, _, best_start = best_candidate
+                if feasible_start < best_start:
+                    best_candidate = candidate
+
+    if best_candidate is None:
+        raise RuntimeError("No feasible next placement found")
+
+    return best_candidate
 
 def pick_best_job(flex_jobs, solution, context, last_job_per_machine):
     input_jobs = {job["Id"]: job for job in context["Jobs"]}
@@ -124,6 +185,32 @@ def calc_last_jobs_pre_machine(solution, context, window_start):
             
     return last_job_per_maching
 
+
+def find_resource_feasible_start(
+    job,
+    earliest_start,
+    solution,
+    context,
+    input_jobs,
+    max_shift=10000,
+):
+    start_time = earliest_start
+    shifted = 0
+
+    while shifted <= max_shift:
+        if resources_available_for_job(
+            job,
+            start_time,
+            solution,
+            context,
+            input_jobs,
+        ):
+            return start_time
+
+        start_time += 1
+        shifted += 1
+
+    return None
 
 def pick_best_machine(job, solution, context, last_job_per_machine):
     machine_ids =  [ machine["Id"] for machine in context["Machines"] if machine["Id"] in job["EligibleMachineIds"] ]
