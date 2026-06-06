@@ -29,7 +29,7 @@ hyperparam: dict = {
     "window_size": 8,
     "window_size_strategy": "fixed",
     "attemts_for_neighbour": 1000,
-    "small_instance_threshold": 20,
+    "small_instance_threshold": 50,
 }
 
 
