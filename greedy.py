@@ -4,6 +4,7 @@ import json
 import math
 import sys
 from random import Random
+import time
 
 from deepdiff import DeepDiff
 
@@ -79,10 +80,16 @@ def greedy_solution(window, context=None, log=True):
     # Try deterministic strategies first
     for mode in ["balanced", "first"]:
         print(mode)
+        mode_start = time.time()
         solution = make_solution_with_assignment(mode)
+        print(f"{mode}: initial assignment created after {time.time() - mode_start:.2f}s")
+
+        rebuild_start = time.time()
         rebuilt = rebuild_schedule(solution, input_data)
+        print(f"{mode}: rebuild finished after {time.time() - rebuild_start:.2f}s")
 
         if rebuilt is not None and constraints.validate(rebuilt, context):
+            print(f"{mode}: validation passed after {time.time() - mode_start:.2f}s")
             if log:
                 print(
                     f"-------- greedy solution found using {mode} assignment --------"
@@ -90,35 +97,56 @@ def greedy_solution(window, context=None, log=True):
                 print(json.dumps(rebuilt, indent=4))
                 print("----------------")
             return rebuilt
+        
+        print(f"{mode}: failed after {time.time() - mode_start:.2f}s")
 
     # Try greed frozen, without frozen:
-    frozen_jobs = []
-    for job in context["Jobs"]:
-        job["Frozen"] = False
-        frozen_jobs.append(job)    
-    context["Jobs"] = frozen_jobs
-
     for attempt in range(10):
-        print("Greedy Frozen: ", attempt)
-        solution = greedyF.greedy_solution(input_data, 0, -1, True)
+            print("Greedy Frozen: ", attempt)
+            frozen_start = time.time()
 
-        if constraints.validate(rebuilt, context):
-            if log:
-                print(
-                    f"-------- greedy solution found using greed frozen assignment, attempt {attempt} --------"
-                )
-                print(json.dumps(rebuilt, indent=4))
-                print("----------------")
-            return rebuilt
-        
+            attempt_context = copy.deepcopy(input_data)
+            for job in attempt_context["Jobs"]:
+                job["Frozen"] = False
+                job.pop("Position", None)
+
+            try:
+                rebuilt = greedyF.greedy_solution(attempt_context, 0, -1, False)
+            except RuntimeError:
+                print(f"Greedy Frozen failed after {time.time() - frozen_start:.2f}s")
+                continue
+
+            validation_start = time.time()
+            is_valid = rebuilt is not None and constraints.validate(rebuilt, context)
+            print(
+                f"Greedy Frozen validation checked after "
+                f"{time.time() - validation_start:.2f}s, valid={is_valid}"
+            )
+
+            if is_valid:
+                print(f"Greedy Frozen succeeded after {time.time() - frozen_start:.2f}s")
+                if log:
+                    print(
+                        f"-------- greedy solution found using greedy frozen assignment, attempt {attempt} --------"
+                    )
+                    print(json.dumps(rebuilt, indent=4))
+                    print("----------------")
+                return rebuilt
+            
     # Then try random assignments
-
     for attempt in range(10):
         print("Random: ", attempt)
+        random_start = time.time()
+
         solution = make_solution_with_assignment("random", attempt)
+        print(f"Random {attempt}: initial assignment created after {time.time() - random_start:.2f}s")
+
+        rebuild_start = time.time()
         rebuilt = rebuild_schedule(solution, input_data)
+        print(f"Random {attempt}: rebuild finished after {time.time() - rebuild_start:.2f}s")
 
         if rebuilt is not None and constraints.validate(rebuilt, context):
+            print(f"Random {attempt}: validation passed after {time.time() - random_start:.2f}s")
             if log:
                 print(
                     f"-------- greedy solution found using random assignment, attempt {attempt} --------"
@@ -126,6 +154,8 @@ def greedy_solution(window, context=None, log=True):
                 print(json.dumps(rebuilt, indent=4))
                 print("----------------")
             return rebuilt
+
+        print(f"Random {attempt}: failed after {time.time() - random_start:.2f}s")
 
     raise RuntimeError("Could not construct a valid initial greedy solution.")
 
@@ -221,12 +251,26 @@ def rebuild_schedule(solution, input_data):
 
             # Resource-aware part:
             # If resources are not available at this start time, delay the job.
+            resource_shift = 0
+            max_resource_shift = 5000
+
             while not resources_available_for_job(
                 ctx_job, start_time, rebuilt, input_data, input_jobs
             ):
                 start_time += 1
+                resource_shift += 1
 
-                if start_time > horizon_limit:
+                if resource_shift % 1000 == 0:
+                    print(
+                        f"Searching resource slot for Job {job_id}: "
+                        f"shifted {resource_shift}, current start {start_time}"
+                    )
+
+                if resource_shift > max_resource_shift:
+                    print(
+                        f"Failed to place Job {job_id}: could not find resource slot "
+                        f"within {max_resource_shift} time units"
+                    )
                     return None
 
             new_job = copy.deepcopy(job)
