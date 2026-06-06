@@ -21,14 +21,14 @@ rand = Random()
 hyperparam: dict = {
     "T_max": 1000,
     "T_min": 10,
-    "max_attemts": 10,
+    "max_attemts": 2,
     "alpha": 0.95,
     "window_size_min": 3,
     "window_size_max": 10,
     "window_size_divident": 2,
     "window_size": 8,
     "window_size_strategy": "fixed",
-    "attemts_for_neighbour": 1000,
+    "attemts_for_neighbour": 50,
     "small_instance_threshold": 50,
 }
 

@@ -33,7 +33,9 @@ class FrozenNeighbour:
         jobs_nr = len(solution)
         solution = sorted(solution, key=lambda s: (s["StartTime"], s["MachineId"]))
         for tries in range(self.attemts_for_neighbour):
-            print(tries)
+            if tries % 50 == 0:
+                print(f"FrozenNeighbour try {tries}")
+
             wsize = self.window_size(jobs_nr)
             i = self.rand.randint(0, jobs_nr - 1 - wsize)
             j = i + wsize
@@ -41,10 +43,17 @@ class FrozenNeighbour:
             context_window, window_start_time = self.convert_new_context(
                 solution, input_data, i, j
             )
+            flex_count = sum(
+                1 for job in context_window["Jobs"]
+                if not job.get("Frozen", False)
+            )
+
+            if jobs_nr >= 500 and flex_count < 30:
+                continue
 
             try:
                 neighbour = greedy.greedy_solution(
-                    context_window, window_start_time, -1, log=True
+                    context_window, window_start_time, -1, log=False
                 )
             except RuntimeError:
                 print("not found")
