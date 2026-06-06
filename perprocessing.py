@@ -13,30 +13,33 @@ def preprocessing(context):
 
 def calculate_resource_change_events(resources, R, T):
     capacity_changes = []
+
     if R > 0:
-        last_resource_timestamp = resources[0]["AvailabilityPeriods"][-1]["End"] + 1
         capacity_changes = sorted(
             {
-                period["Start"]
+                time
                 for resource in resources
                 for period in resource["AvailabilityPeriods"]
-            }.union({last_resource_timestamp}).union({T})
+                for time in (period["Start"], period["End"])
+            }.union({T})
         )
 
     resource_capacity = [
         [
             next(
-                period["Capacity"]
-                for period in resource["AvailabilityPeriods"]
-                if period["Start"] <= time < period["End"]
+                (
+                    period["Capacity"]
+                    for period in resource["AvailabilityPeriods"]
+                    if period["Start"] <= time < period["End"]
+                ),
+                0,
             )
-            for time in capacity_changes[:-2]
+            for time in capacity_changes[:-1]
         ]
-        + [0]
         for resource in resources
     ]
 
-    return (capacity_changes, resource_capacity)
+    return capacity_changes, resource_capacity
 
 
 def resource_horizon(resources, jobs):
