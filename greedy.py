@@ -29,6 +29,12 @@ def greedy_solution(window, context=None, log=True):
     if context is None:
         context = window
 
+    try:
+        return greedy_ready_list_solution(input_data, log)
+    except RuntimeError as e:
+        print("Ready-list greedy failed, falling back to old greedy.")
+        print(e)
+
     machines = [m["Id"] for m in input_data["Machines"]]
 
     # Base job order
@@ -159,6 +165,200 @@ def greedy_solution(window, context=None, log=True):
 
     raise RuntimeError("Could not construct a valid initial greedy solution.")
 
+def greedy_ready_list_solution(input_data, log=True):
+    input_jobs = {job["Id"]: job for job in input_data["Jobs"]}
+
+    unscheduled = {job["Id"] for job in input_data["Jobs"]}
+    scheduled_ids = set()
+
+    solution = []
+
+    successor_count = calculate_successor_count(input_data)
+
+    last_job_per_machine = {
+        machine["Id"]: None for machine in input_data["Machines"]
+    }
+
+    while unscheduled:
+        ready_jobs = [
+            input_jobs[job_id]
+            for job_id in unscheduled
+            if all(
+                pred_id in scheduled_ids
+                for pred_id in input_jobs[job_id]["PrecedenceJobIds"]
+            )
+        ]
+
+        if not ready_jobs:
+            raise RuntimeError(
+                "No ready job found. There may be a precedence cycle or invalid data."
+            )
+
+        ready_jobs = sorted(
+            ready_jobs,
+            key=lambda job: job_priority(job, successor_count)
+        )
+
+        best_candidate = None
+
+        for job in ready_jobs:
+            for machine_id in job["EligibleMachineIds"]:
+                earliest_start = calculate_earliest_start_for_machine(
+                    job,
+                    machine_id,
+                    last_job_per_machine,
+                    solution,
+                    input_jobs,
+                )
+
+                feasible_start = find_resource_feasible_start(
+                    job,
+                    earliest_start,
+                    solution,
+                    input_data,
+                    input_jobs,
+                    max_shift=10000,
+                )
+
+                if feasible_start is None:
+                    continue
+
+                candidate = {
+                    "job": job,
+                    "machine_id": machine_id,
+                    "start_time": feasible_start,
+                }
+
+                if best_candidate is None:
+                    best_candidate = candidate
+                elif candidate_score(candidate) < candidate_score(best_candidate):
+                    best_candidate = candidate
+
+        if best_candidate is None:
+            raise RuntimeError("No feasible placement found for any ready job.")
+
+        job = best_candidate["job"]
+        machine_id = best_candidate["machine_id"]
+        start_time = best_candidate["start_time"]
+
+        placed_job = {
+            "JobId": job["Id"],
+            "StartTime": start_time,
+            "MachineId": machine_id,
+            "ProcessingTime": job["ProcessingTime"],
+            "DueTime": job["DueTime"],
+        }
+
+        solution.append(placed_job)
+        scheduled_ids.add(job["Id"])
+        unscheduled.remove(job["Id"])
+        last_job_per_machine[machine_id] = placed_job
+
+    if not constraints.validate(solution, input_data):
+        raise RuntimeError("Ready-list greedy constructed invalid solution.")
+
+    if log:
+        print("-------- greedy ready-list solution found --------")
+        print(json.dumps(solution, indent=4))
+        print("----------------")
+
+    return solution
+
+def calculate_successor_count(input_data):
+    successor_count = {job["Id"]: 0 for job in input_data["Jobs"]}
+
+    for job in input_data["Jobs"]:
+        for pred_id in job["PrecedenceJobIds"]:
+            if pred_id in successor_count:
+                successor_count[pred_id] += 1
+
+    return successor_count
+
+
+def job_priority(job, successor_count):
+    resource_demand = sum(req["Capacity"] for req in job["RequiredResources"])
+
+    return (
+        -successor_count[job["Id"]],          # jobs with many successors first
+        len(job["EligibleMachineIds"]),       # jobs with fewer possible machines first
+        -resource_demand,                     # resource-heavy jobs first
+        job["DueTime"],                       # earlier due dates first
+        -job["ProcessingTime"],               # longer jobs first
+    )
+
+
+def calculate_earliest_start_for_machine(
+    job,
+    machine_id,
+    last_job_per_machine,
+    solution,
+    input_jobs,
+):
+    # Earliest start due to precedence constraints
+    precedence_start = 0
+
+    for pred_id in job["PrecedenceJobIds"]:
+        pred_solution = next(
+            s for s in solution if s["JobId"] == pred_id
+        )
+        pred_end = pred_solution["StartTime"] + input_jobs[pred_id]["ProcessingTime"]
+        precedence_start = max(precedence_start, pred_end)
+
+    # Earliest start due to previous job on this machine
+    previous_job = last_job_per_machine[machine_id]
+
+    if previous_job is None:
+        machine_start = job["InitialSetupTime"]
+    else:
+        previous_job_id = previous_job["JobId"]
+        previous_end = (
+            previous_job["StartTime"]
+            + input_jobs[previous_job_id]["ProcessingTime"]
+        )
+
+        setup_time = job["JobSetupTimes"][previous_job_id - 1]
+        machine_start = previous_end + setup_time
+
+    return max(precedence_start, machine_start)
+
+
+def candidate_score(candidate):
+    job = candidate["job"]
+    end_time = candidate["start_time"] + job["ProcessingTime"]
+    tardiness = max(0, end_time - job["DueTime"])
+
+    return (
+        candidate["start_time"],
+        tardiness,
+        end_time,
+    )
+
+
+def find_resource_feasible_start(
+    job,
+    earliest_start,
+    solution,
+    input_data,
+    input_jobs,
+    max_shift=10000,
+):
+    start_time = earliest_start
+    shifted = 0
+
+    while shifted <= max_shift:
+        if resources_available_for_job(
+            job,
+            start_time,
+            solution,
+            input_data,
+            input_jobs,
+        ):
+            return start_time
+
+        start_time += 1
+        shifted += 1
+
+    return None
 
 def rebuild_schedule(solution, input_data):
     """
