@@ -19,7 +19,6 @@ timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 rand = Random()
 
 
-
 hyperparam: dict = {
     "T_max": 1000,
     "T_min": 10,
@@ -35,7 +34,7 @@ hyperparam: dict = {
     "max_runtime_seconds": 300,
     "max_evaluations": 1000,
     "max_no_improvement": 200,
-    "enable_visualization": False,
+    "enable_visualization": True,
     "log_interval": 50,
 }
 
@@ -119,8 +118,7 @@ def simulated_annealing(input_data: dict):
                 log_result(best, best_score, T, t, attempt, persist=True)
                 return best
 
-            if t % hyperparam.get("log_interval", 50) == 0:
-                log_result(best, best_score, T, t, attempt)
+            log_result(best, current_score, T, t, attempt)
         attempt += 1
         T *= alpha
 
