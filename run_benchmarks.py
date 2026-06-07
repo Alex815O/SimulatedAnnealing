@@ -80,8 +80,7 @@ def run_single_instance(instance_path, runs=5):
         os.makedirs("results", exist_ok=True)
 
         run_solution_path = os.path.join(
-            "results",
-            solution_filename(instance_path, run)
+            "results", solution_filename(instance_path, run)
         )
 
         with open(run_solution_path, "w") as f:
@@ -102,10 +101,7 @@ def run_single_instance(instance_path, runs=5):
             "status": "failed",
         }
 
-    final_solution_path = os.path.join(
-        "results",
-        solution_filename(instance_path)
-    )
+    final_solution_path = os.path.join("results", solution_filename(instance_path))
 
     with open(final_solution_path, "w") as f:
         json.dump(strip_solution(best_solution), f, indent=4)
@@ -122,7 +118,7 @@ def run_single_instance(instance_path, runs=5):
 
 
 def main():
-    instance_paths = sorted(glob.glob("data/PSSAI_PMS_*.json"))
+    instance_paths = sorted(glob.glob("data/PSSAI_PMS_j500*.json"))
 
     if not instance_paths:
         print("No benchmark instances found in data/")
