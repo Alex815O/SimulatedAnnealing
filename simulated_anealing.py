@@ -3,6 +3,7 @@ import datetime
 import json
 import math
 import sys
+import time
 from operator import ne
 from random import Random
 
@@ -18,18 +19,24 @@ timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 rand = Random()
 
 
+
 hyperparam: dict = {
     "T_max": 1000,
     "T_min": 10,
-    "max_attemts": 2,
+    "max_attemts": 10,
     "alpha": 0.95,
     "window_size_min": 3,
     "window_size_max": 10,
     "window_size_divident": 2,
     "window_size": 8,
     "window_size_strategy": "fixed",
-    "attemts_for_neighbour": 50,
-    "small_instance_threshold": 50,
+    "attemts_for_neighbour": 30,
+    "small_instance_threshold": 20,
+    "max_runtime_seconds": 300,
+    "max_evaluations": 1000,
+    "max_no_improvement": 200,
+    "enable_visualization": False,
+    "log_interval": 50,
 }
 
 
@@ -57,6 +64,15 @@ def accept_neighbour(score_solution, score_neighbour, T):
 
 
 def simulated_annealing(input_data: dict):
+    start_time = time.time()
+    max_runtime = hyperparam.get("max_runtime_seconds", 300)
+
+    evaluations = 0
+    max_evaluations = hyperparam.get("max_evaluations", 1000)
+
+    no_improvement = 0
+    max_no_improvement = hyperparam.get("max_no_improvement", 200)
+
     T = hyperparam["T_max"]
     T_min = hyperparam["T_min"]
     max_attempts = hyperparam["max_attemts"]
@@ -74,8 +90,18 @@ def simulated_annealing(input_data: dict):
     attempt = 0
     while T > T_min:
         for t in range(max_attempts):
+            if time.time() - start_time > max_runtime:
+                print("SA runtime limit reached.")
+                log_result(best, best_score, T, t, attempt, persist=True)
+                return best
             neighbour = neighbourhood.generate_neighbour(current, input_data)
             neighbour_score = evaluate(neighbour, input_data)
+            evaluations += 1
+
+            if evaluations >= max_evaluations:
+                print("SA evaluation limit reached.")
+                log_result(best, best_score, T, t, attempt, persist=True)
+                return best
 
             if accept_neighbour(current_score, neighbour_score, T):
                 current = neighbour
@@ -84,12 +110,21 @@ def simulated_annealing(input_data: dict):
             if current_score < best_score:
                 best = copy.deepcopy(current)
                 best_score = current_score
+                no_improvement = 0
+            else:
+                no_improvement += 1
 
-            log_result(best, current_score, T, t, attempt)
+            if no_improvement >= max_no_improvement:
+                print("SA stopped: no improvement limit reached.")
+                log_result(best, best_score, T, t, attempt, persist=True)
+                return best
+
+            if t % hyperparam.get("log_interval", 50) == 0:
+                log_result(best, best_score, T, t, attempt)
         attempt += 1
         T *= alpha
 
-    log_result(best, current_score, T, -1, -1, persist=True)
+    log_result(best, best_score, T, -1, -1, persist=True)
     return best
 
 
@@ -119,7 +154,9 @@ def log_result(solution, score, T, t, attemts, persist=False):
     if persist:
         file_timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         graph_file = f"graph_{score:.4f}_{file_timestamp}.png"
-    visualize_logs.update(score, T, graph_file)
+
+    if hyperparam.get("enable_visualization", False):
+        visualize_logs.update(score, T, graph_file)
 
 
 def main():
