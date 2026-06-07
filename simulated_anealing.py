@@ -25,7 +25,7 @@ hyperparam: dict = {
     "max_attemts": 10,
     "alpha": 0.95,
     "window_size_min": 3,
-    "window_size_max": 100,
+    "window_size_max": 20,
     "window_size_divident": 2,
     "window_size": 8,
     "window_size_strategy": "random",
