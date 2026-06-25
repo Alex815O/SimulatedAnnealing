@@ -11,7 +11,7 @@ import greedy
 import neighbourhood_single_change as SingleChangeNeihbour
 import perprocessing
 import visualize_logs
-from neighbourhood_frozen_jobs import FrozenNeighbour
+from neighbourhood_hybrid_lns import FrozenNeighbour
 from neighbourhood_single_change import SingleChangeNeighbour
 
 timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -19,17 +19,17 @@ rand = Random()
 
 
 hyperparam: dict = {
-    "T_max": 1000,
-    "T_min": 10,
-    "max_attemts": 10,
+    "T_max": 100,
+    "T_min": 50,
+    "max_attemts": 1,
     "alpha": 0.95,
-    "window_size_min": 3,
-    "window_size_max": 10,
+    "window_size_min": 2,
+    "window_size_max": 3,
     "window_size_divident": 2,
-    "window_size": 8,
+    "window_size": 3,
     "window_size_strategy": "fixed",
-    "attemts_for_neighbour": 1000,
-    "small_instance_threshold": 20,
+    "attemts_for_neighbour": 3,
+    "small_instance_threshold": 0,
 }
 
 
@@ -64,6 +64,8 @@ def simulated_annealing(input_data: dict):
 
     jobs_nr = len(input_data["Jobs"])
     neighbourhood = deceide_neighbourhood(jobs_nr)
+    print("Neighbourhood class:", type(neighbourhood))
+    print("Neighbourhood module:", type(neighbourhood).__module__)
 
     current = greedy.greedy_solution(input_data)
     current_score = evaluate(current, input_data)

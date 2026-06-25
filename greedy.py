@@ -5,7 +5,6 @@ import math
 import sys
 from random import Random
 
-from deepdiff import DeepDiff
 
 import constraints
 import greedy_frozen_jobs as greedyF
@@ -91,25 +90,27 @@ def greedy_solution(window, context=None, log=True):
                 print("----------------")
             return rebuilt
 
-    # Try greed frozen, without frozen:
-    frozen_jobs = []
+    # Try greedy frozen, without frozen:
     for job in context["Jobs"]:
         job["Frozen"] = False
-        frozen_jobs.append(job)    
-    context["Jobs"] = frozen_jobs
 
     for attempt in range(10):
         print("Greedy Frozen: ", attempt)
-        solution = greedyF.greedy_solution(input_data, 0, -1, True)
 
-        if constraints.validate(rebuilt, context):
+        try:
+            solution = greedyF.greedy_solution(input_data, 0, -1, True)
+        except RuntimeError:
+            print("Greedy frozen failed, trying next attempt")
+            continue
+
+        if constraints.validate(solution, context):
             if log:
                 print(
-                    f"-------- greedy solution found using greed frozen assignment, attempt {attempt} --------"
+                    f"-------- greedy solution found using greedy frozen assignment, attempt {attempt} --------"
                 )
-                print(json.dumps(rebuilt, indent=4))
+                print(json.dumps(solution, indent=4))
                 print("----------------")
-            return rebuilt
+            return solution
         
     # Then try random assignments
 
