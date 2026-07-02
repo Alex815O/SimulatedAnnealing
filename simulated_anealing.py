@@ -2,6 +2,7 @@ import copy
 import datetime
 import json
 import math
+import os
 import sys
 from operator import ne
 from random import Random
@@ -17,19 +18,36 @@ from neighbourhood_single_change import SingleChangeNeighbour
 timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 rand = Random()
 
+# Directory where the current run's sa_log.txt and graph are stored.
+# Set up in main() via setup_run_dir() before the annealing starts.
+run_dir = "."
+
+
+def setup_run_dir(input_path):
+    """Create a folder under runs/ named after the instance file and date."""
+    global run_dir
+    instance_name = os.path.splitext(os.path.basename(input_path))[0]
+    folder_timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    run_dir = os.path.join("runs", f"{instance_name}_{folder_timestamp}")
+    os.makedirs(run_dir, exist_ok=True)
+    print(f"Run directory: {run_dir}")
+    return run_dir
+
 
 hyperparam: dict = {
-    "T_max": 100,
+    "T_max": 1000,
     "T_min": 50,
     "max_attemts": 1,
     "alpha": 0.95,
-    "window_size_min": 2,
-    "window_size_max": 3,
+    "window_size_min": 5,
+    "window_size_max": 25,
     "window_size_divident": 2,
-    "window_size": 3,
+    "window_size": 5,
     "window_size_strategy": "fixed",
-    "attemts_for_neighbour": 3,
+    "attemts_for_neighbour": 30,
     "small_instance_threshold": 0,
+    "repair_time_limit_seconds": 10,
+    "use_greedy_fallback": False
 }
 
 

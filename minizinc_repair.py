@@ -31,29 +31,54 @@ def repair_with_minizinc(context_window, original_input_data, time_limit_seconds
             "minizinc",
             "--solver",
             "chuffed",
+            # Free search: let Chuffed use its own activity-based search instead
+            # of the static int_search annotation. On the LNS repair sub-problems
+            # the static search fails to find even a feasible solution within the
+            # time limit, while free search finds (and improves) one quickly.
+            "-f",
             "--time-limit",
             str(time_limit_seconds * 1000),
             MODEL_PATH,
             data_path,
         ]
 
+        # We pass --time-limit to MiniZinc, but Chuffed's free search does not
+        # always honour it promptly (it can keep restarting well past the
+        # limit). So we also enforce a hard wall-clock timeout here. Crucially,
+        # when the process is killed we still keep whatever output it produced:
+        # MiniZinc prints every improving solution as it goes, so the captured
+        # output already contains the best solution found so far.
         try:
             result = subprocess.run(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                timeout=time_limit_seconds + 2,
+                timeout=time_limit_seconds + 5,
             )
-        except subprocess.TimeoutExpired:
-            return None
+            stdout = result.stdout
+            stderr = result.stderr
+            returncode = result.returncode
+        except subprocess.TimeoutExpired as exc:
+            # On timeout subprocess kills the process and attaches the output it
+            # had captured so far to the exception.
+            stdout = exc.stdout or ""
+            stderr = exc.stderr or ""
+            if isinstance(stdout, bytes):
+                stdout = stdout.decode(errors="replace")
+            if isinstance(stderr, bytes):
+                stderr = stderr.decode(errors="replace")
+            returncode = None
 
-        if result.returncode != 0:
+        # returncode 0 = solved/optimal, None = we killed it on timeout (but it
+        # may still have printed a usable solution). Any other non-zero code is
+        # a real MiniZinc error.
+        if returncode not in (0, None):
             print("MiniZinc error:")
-            print(result.stderr)
+            print(stderr)
             return None
 
-        solution = parse_minizinc_json_output(result.stdout, context_window)
+        solution = parse_minizinc_json_output(stdout, context_window)
 
         if solution is None:
             return None
@@ -145,11 +170,22 @@ def build_minizinc_data(context):
     # If T is smaller than a frozen start time, MiniZinc becomes infeasible.
     T = max(T, max_fixed_end + 1)
 
+    # Window the free jobs must be rescheduled into. When the caller knows the
+    # window (the LNS neighbourhood does), restricting the free jobs to it keeps
+    # the current solution feasible and makes the search dramatically faster.
+    # Without it we fall back to the full horizon (no restriction).
+    window_lb = context.get("RepairWindowStart", 0)
+    window_ub = context.get("RepairWindowEnd", T)
+    # Never tighter than the frozen-anchored horizon allows.
+    window_ub = min(max(window_ub, window_lb), T)
+
     return {
         "M": M,
         "J": J,
         "R": R,
         "T": T,
+        "WINDOW_LB": window_lb,
+        "WINDOW_UB": window_ub,
         "MAX_CAPACITY_CHANGE": MAX_CAPACITY_CHANGE,
         "jobsDuration": jobsDuration,
         "jobsDueTime": jobsDueTime,
@@ -169,14 +205,31 @@ def build_minizinc_data(context):
 def calculate_horizon(context, max_fixed_end):
     jobs = context["Jobs"]
 
-    total_processing = sum(job["ProcessingTime"] for job in jobs)
+    repair_makespan = context.get("RepairOriginalMakespan")
+
+    # LNS repair case: some jobs are frozen and we know the makespan of the
+    # current solution. The current solution itself (every free job back at its
+    # original position) is always a feasible repair, and it fits within that
+    # makespan. So the makespan is already a sufficient horizon. Keeping it tight
+    # is essential: a horizon several times larger than necessary blows up the
+    # free jobs' start-time domains and makes MiniZinc search far too slow to
+    # find any neighbour within the time limit.
+    if repair_makespan is not None:
+        return max(max_fixed_end, repair_makespan)
+
+    # Full solve from scratch (no frozen jobs / no known makespan): reserve
+    # enough room to place every job one after another, including initial and
+    # worst-case inter-job setup times.
+    free_processing = sum(job["ProcessingTime"] for job in jobs)
     max_initial_setup = max((job["InitialSetupTime"] for job in jobs), default=0)
     max_setup = max(
         (setup for job in jobs for setup in job["JobSetupTimes"]),
-        default=0
+        default=0,
     )
 
-    return max_fixed_end + total_processing + max_initial_setup + max_setup * len(jobs) + 10
+    free_room = free_processing + max_initial_setup + max_setup * len(jobs)
+
+    return max(max_fixed_end, free_room) + 10
 
 
 def parse_minizinc_json_output(stdout, context):
@@ -187,22 +240,31 @@ def parse_minizinc_json_output(stdout, context):
         {"JobId": 1, "StartTime": 0, "MachineId": 1}
       ]
     }
+
+    When minimizing, MiniZinc prints EVERY improving solution, each as its own
+    JSON block separated by a line of dashes ("----------"). We must take the
+    LAST complete block (the best solution found); spanning from the first "{"
+    to the last "}" would glue several blocks together into invalid JSON.
     """
 
-    try:
-        json_start = stdout.find("{")
-        json_end = stdout.rfind("}") + 1
+    # Split on the solution separator and keep the last block that parses as the
+    # expected JSON object. A block killed mid-print (no closing brace) simply
+    # fails to parse and is ignored in favour of the previous complete one.
+    parsed = None
+    for block in stdout.split("----------"):
+        start = block.find("{")
+        end = block.rfind("}")
+        if start == -1 or end == -1 or end < start:
+            continue
+        try:
+            candidate = json.loads(block[start : end + 1])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(candidate, dict) and "Jobs" in candidate:
+            parsed = candidate
 
-        if json_start == -1 or json_end == 0:
-            print("Could not find JSON in MiniZinc output:")
-            print(stdout)
-            return None
-
-        json_text = stdout[json_start:json_end]
-        parsed = json.loads(json_text)
-
-    except json.JSONDecodeError:
-        print("Could not parse MiniZinc JSON output:")
+    if parsed is None:
+        print("Could not find a parseable solution in MiniZinc output:")
         print(stdout)
         return None
 

@@ -1,0 +1,4 @@
+output let {array [int] of string: X_INTRODUCED_96967_ = ["{\n","  \"Jobs\": [\n",concat([(((((("    {\"JobId\": "++show(j))++", \"StartTime\": ")++show(start[j]))++", \"MachineId\": ")++show(mach[j]))++"}")++if j < J then ",\n" else "\n" endif | j in 1..J]),"  ]\n","}\n"]} in (X_INTRODUCED_96967_);
+int: J = 50;
+array [1..J] of int: start;
+array [1..J] of int: mach;

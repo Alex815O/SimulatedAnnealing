@@ -20,6 +20,10 @@ class FrozenNeighbour:
             window_size           -> fixed window size
             window_size_strategy  -> random, fixed, relative
             attemts_for_neighbour -> number of tries to find a valid neighbour
+            repair_time_limit_seconds -> MiniZinc time budget per repair
+            use_greedy_fallback   -> if False, never fall back to greedy when
+                                     MiniZinc fails (mainly for tests that want
+                                     to assert the neighbour came from MiniZinc)
         """
         self.timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.rand = Random()
@@ -29,8 +33,14 @@ class FrozenNeighbour:
         self.window_size_divident = hyperparam.get("window_size_divident", 2)
         self.my_window_size = hyperparam.get("window_size", 8)
         self.attemts_for_neighbour = hyperparam.get("attemts_for_neighbour", 10000)
+        self.repair_time_limit = hyperparam.get("repair_time_limit_seconds", 60)
+        self.use_greedy_fallback = hyperparam.get("use_greedy_fallback", True)
+        # Records how the last returned neighbour was produced: "minizinc",
+        # "greedy" or None (no neighbour found / fell back to the input copy).
+        self.last_neighbour_source = None
 
     def generate_neighbour(self, solution, input_data):
+        self.last_neighbour_source = None
         jobs_nr = len(solution)
         solution = sorted(solution, key=lambda s: (s["StartTime"], s["MachineId"]))
         for tries in range(self.attemts_for_neighbour):
@@ -42,20 +52,23 @@ class FrozenNeighbour:
             context_window, window_start_time = self.convert_new_context(
                 solution, input_data, i, j
             )
-            
-
 
             try:
                 print("Calling MiniZinc repair...")
 
                 neighbour = minizinc_repair.repair_with_minizinc(
-                context_window,
-                input_data,
-                time_limit_seconds=3)
+                    context_window,
+                    input_data,
+                    time_limit_seconds=self.repair_time_limit
+                )
 
-                print("MiniZinc repair returned:", neighbour is not None)
-                
+                print("MiniZinc repair returned:", neighbour is not None, " with window size: ", str(wsize))
+                source = "minizinc"
+
                 if neighbour is None:
+                    if not self.use_greedy_fallback:
+                        # Caller asked for MiniZinc-only neighbours.
+                        continue
                     print("MiniZinc did not find a valid repair, trying greedy fallback")
                     neighbour = greedy.greedy_solution(
                         context_window,
@@ -63,8 +76,8 @@ class FrozenNeighbour:
                         -1,
                         log=False
                     )
+                    source = "greedy"
 
-            
             except RuntimeError:
                 print("not found")
                 continue
@@ -76,6 +89,7 @@ class FrozenNeighbour:
                 print("#" * 10)
                 if diff == {}:
                     continue
+                self.last_neighbour_source = source
                 return neighbour
             else:
                 print("not valid")
@@ -117,6 +131,23 @@ class FrozenNeighbour:
                 }
             else:
                 job["Frozen"] = False
+
+        # Makespan of the current solution. The repair must always be able to
+        # represent at least this solution, so it is a lower bound for the
+        # MiniZinc horizon T (see calculate_horizon in minizinc_repair.py).
+        instance_jobs_by_id = {job["Id"]: job for job in context["Jobs"]}
+        context["RepairOriginalMakespan"] = max(
+            sol["StartTime"] + instance_jobs_by_id[sol["JobId"]]["ProcessingTime"]
+            for sol in solution
+        )
+
+        # Time window the free jobs must be rescheduled into. Their original
+        # positions already lie inside it (see jobs_in_range), so it keeps the
+        # current solution feasible while keeping the MiniZinc search small and
+        # fast (see WINDOW_LB / WINDOW_UB in lns_repair.mzn).
+        last_job = solution[j]
+        context["RepairWindowStart"] = window_start_time
+        context["RepairWindowEnd"] = last_job["StartTime"] + last_job["ProcessingTime"]
 
         return context, window_start_time
 
