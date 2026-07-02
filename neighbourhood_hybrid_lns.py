@@ -39,15 +39,13 @@ class FrozenNeighbour:
         # "greedy" or None (no neighbour found / fell back to the input copy).
         self.last_neighbour_source = None
 
-    def generate_neighbour(self, solution, input_data):
+    def generate_neighbor(self, solution, input_data):
         self.last_neighbour_source = None
         jobs_nr = len(solution)
         solution = sorted(solution, key=lambda s: (s["StartTime"], s["MachineId"]))
-        for tries in range(self.attemts_for_neighbour):
-            print(tries)
-            wsize = self.window_size(jobs_nr)
-            i = self.rand.randint(0, jobs_nr - 1 - wsize)
-            j = i + wsize
+        for tries in range(self.attemts_for_neighbour)
+            
+            wsize, i, j = self.get_job_window(jobs_nr)
 
             context_window, window_start_time = self.convert_new_context(
                 solution, input_data, i, j
@@ -97,6 +95,12 @@ class FrozenNeighbour:
         # Fallback: no valid neighbour found.
         return copy.deepcopy(solution)
 
+    def get_job_window(self, jobs_nr):
+        wsize = self.window_size(jobs_nr)
+        i = self.rand.randint(0, jobs_nr - 1 - wsize)
+        j = i + wsize
+        return wsize, i, j
+        
     def window_size(self, jobs_nr):
         if self.window_size_strategy == "random":
             return self.rand.randint(self.window_size_min, self.window_size_max)

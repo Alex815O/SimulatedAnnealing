@@ -133,12 +133,12 @@ def log_result(solution, score, T, t, attemts, persist=False):
 
     print(log_message)
 
-    with open("sa_log.txt", "a") as f:
-        f.write(f"{attemts},{T},{t}, {score},{timestamp}\n")
+    with open(os.path.join(run_dir, "sa_log.txt"), "a") as f:
+        f.write(log_message + "\n")
     graph_file = None
     if persist:
         file_timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        graph_file = f"graph_{score:.4f}_{file_timestamp}.png"
+        graph_file = os.path.join(run_dir, f"graph_{score:.4f}_{file_timestamp}.png")
     visualize_logs.update(score, T, graph_file)
 
 
@@ -150,6 +150,7 @@ def main():
         input_path = "data/ToyInstance.json"
     else:
         input_path = sys.argv[1]
+    setup_run_dir(input_path)
     input_data = read_input(input_path)
     input_data = perprocessing.preprocessing(input_data)
     best = simulated_annealing(input_data)
