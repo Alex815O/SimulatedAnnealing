@@ -84,6 +84,85 @@ def make_context(instance, frozen_positions=None):
     return context
 
 
+def _frozen(job_id, start, machine, proc, due=0):
+    return {
+        "Id": job_id,
+        "ProcessingTime": proc,
+        "DueTime": due,
+        "Frozen": True,
+        "Position": {"StartTime": start, "MachineId": machine},
+    }
+
+
+def _free(job_id, proc=10, due=0):
+    return {"Id": job_id, "ProcessingTime": proc, "DueTime": due, "Frozen": False}
+
+
+class SelectRelevantJobsTest(unittest.TestCase):
+    """
+    Pure-Python tests (no solver) for the job reduction that keeps the MiniZinc
+    sub-problem window-sized: only free jobs, frozen jobs overlapping the window,
+    and the direct machine boundary-neighbours of the window are kept; every
+    other frozen job is dropped and merged back afterwards.
+    """
+
+    def test_keeps_window_relevant_drops_the_rest(self):
+        context = {
+            "RepairWindowStart": 100,
+            "RepairWindowEnd": 200,
+            "Jobs": [
+                _free(1),
+                _free(2),
+                _frozen(3, start=150, machine=1, proc=10),   # overlaps window
+                _frozen(4, start=50, machine=1, proc=20),     # earliest on m1 (first)
+                _frozen(5, start=80, machine=1, proc=15),     # nearer predecessor m1
+                _frozen(6, start=250, machine=1, proc=10),    # nearer successor m1
+                _frozen(7, start=300, machine=1, proc=10),    # far successor m1 -> dropped
+                _frozen(8, start=10, machine=2, proc=5),      # earliest on m2 (first)
+                _frozen(9, start=90, machine=2, proc=5),      # nearer predecessor m2
+            ],
+        }
+        kept, dropped = minizinc_repair.select_relevant_jobs(context)
+        kept_ids = {j["Id"] for j in kept}
+        dropped_ids = {j["Id"] for j in dropped}
+
+        # Kept: free (1,2), overlap (3), boundary neighbours (5,6 on m1; 9 on m2),
+        # and the earliest job on each machine to preserve the InitialSetupTime
+        # exemption (4 on m1, 8 on m2). Only the far successor 7 is dropped.
+        self.assertEqual(kept_ids, {1, 2, 3, 4, 5, 6, 8, 9})
+        self.assertEqual(dropped_ids, {7})
+        # kept + dropped partition the whole instance, no duplicates.
+        self.assertEqual(kept_ids | dropped_ids, {1, 2, 3, 4, 5, 6, 7, 8, 9})
+        self.assertEqual(len(kept) + len(dropped), 9)
+
+    def test_no_window_keeps_everything(self):
+        """Without a window set, no frozen job may be dropped (old behaviour)."""
+        context = {
+            "Jobs": [
+                _free(1),
+                _frozen(2, start=5, machine=1, proc=5),
+                _frozen(3, start=999, machine=1, proc=5),
+            ]
+        }
+        kept, dropped = minizinc_repair.select_relevant_jobs(context)
+        self.assertEqual(dropped, [])
+        self.assertEqual({j["Id"] for j in kept}, {1, 2, 3})
+
+    def test_frozen_entry_rebuilt_from_position(self):
+        job = _frozen(7, start=42, machine=3, proc=11, due=100)
+        entry = minizinc_repair.frozen_job_to_solution_entry(job)
+        self.assertEqual(
+            entry,
+            {
+                "JobId": 7,
+                "StartTime": 42,
+                "MachineId": 3,
+                "ProcessingTime": 11,
+                "DueTime": 100,
+            },
+        )
+
+
 @unittest.skipUnless(
     MINIZINC_AVAILABLE, "minizinc binary and/or Chuffed solver not available"
 )

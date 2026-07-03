@@ -15,7 +15,7 @@ import visualize_logs
 from neighbourhood_hybrid_lns import FrozenNeighbour
 from neighbourhood_single_change import SingleChangeNeighbour
 
-timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 rand = Random()
 
 # Directory where the current run's sa_log.txt and graph are stored.
@@ -35,15 +35,15 @@ def setup_run_dir(input_path):
 
 
 hyperparam: dict = {
-    "T_max": 1000,
-    "T_min": 50,
+    "T_max": 500,
+    "T_min": 10,
     "max_attemts": 1,
     "alpha": 0.95,
-    "window_size_min": 5,
-    "window_size_max": 25,
+    "window_size_min": 3,
+    "window_size_max": 10,
     "window_size_divident": 2,
     "window_size": 5,
-    "window_size_strategy": "fixed",
+    "window_size_strategy": "random",
     "attemts_for_neighbour": 30,
     "small_instance_threshold": 0,
     "repair_time_limit_seconds": 10,
@@ -137,8 +137,7 @@ def log_result(solution, score, T, t, attemts, persist=False):
         f.write(log_message + "\n")
     graph_file = None
     if persist:
-        file_timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        graph_file = os.path.join(run_dir, f"graph_{score:.4f}_{file_timestamp}.png")
+        graph_file = os.path.join(run_dir, f"graph_{score:.4f}_{timestamp}.png")
     visualize_logs.update(score, T, graph_file)
 
 

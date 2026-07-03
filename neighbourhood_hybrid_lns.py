@@ -39,12 +39,12 @@ class FrozenNeighbour:
         # "greedy" or None (no neighbour found / fell back to the input copy).
         self.last_neighbour_source = None
 
-    def generate_neighbor(self, solution, input_data):
+    def generate_neighbour(self, solution, input_data):
         self.last_neighbour_source = None
         jobs_nr = len(solution)
         solution = sorted(solution, key=lambda s: (s["StartTime"], s["MachineId"]))
-        for tries in range(self.attemts_for_neighbour)
-            
+        for tries in range(self.attemts_for_neighbour):
+
             wsize, i, j = self.get_job_window(jobs_nr)
 
             context_window, window_start_time = self.convert_new_context(
@@ -97,22 +97,29 @@ class FrozenNeighbour:
 
     def get_job_window(self, jobs_nr):
         wsize = self.window_size(jobs_nr)
+        # The window spans indices i..j (j = i + wsize) into the start-time-sorted
+        # solution, so it must fit: 0 <= wsize <= jobs_nr - 1 and j <= jobs_nr - 1.
+        # Clamp wsize so a large configured window (or a small instance) can never
+        # make randint's range empty -- that used to crash the whole SA run.
+        wsize = max(0, min(wsize, jobs_nr - 1))
         i = self.rand.randint(0, jobs_nr - 1 - wsize)
         j = i + wsize
         return wsize, i, j
-        
+
     def window_size(self, jobs_nr):
         if self.window_size_strategy == "random":
-            return self.rand.randint(self.window_size_min, self.window_size_max)
+            upper = self.window_size_max
         elif self.window_size_strategy == "relative":
-            return self.rand.randint(
-                self.window_size_min, jobs_nr // self.window_size_divident
-            )
+            upper = jobs_nr // self.window_size_divident
         elif self.window_size_strategy == "fixed":
             return self.my_window_size
+        else:
+            print("No WINDOW SIZE defined, default will be 5...fix that")
+            return 5
 
-        print("No WINDOW SIZE defined, default will be 5...fix that")
-        return 5
+        # Never let the lower bound exceed the upper bound (e.g. relative sizing on
+        # a small instance), which would make randint raise.
+        return self.rand.randint(self.window_size_min, max(self.window_size_min, upper))
 
     def convert_new_context(self, solution, context, i, j):
         """

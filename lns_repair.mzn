@@ -19,6 +19,12 @@ array[1..J] of bool: is_frozen;
 array[1..J] of int: fixed_start;
 array[1..J] of int: fixed_machine;
 
+% Real (global) job id for each position 1..J. The model indexes everything by
+% position, but only a window-relevant subset of the instance is sent to the
+% solver, so a position is no longer equal to the job's id. This maps it back so
+% the output reports the correct JobId.
+array[1..J] of int: jobId;
+
 % Time window the free (non-frozen) jobs must be rescheduled into. In an LNS
 % repair the free jobs come from a contiguous time window of the current
 % solution, and their original positions already fit inside [WINDOW_LB,
@@ -122,12 +128,16 @@ constraint forall(i, j in 1..J where
 % job i is the direct predecessor of job j iff they share a machine, i starts
 % before j, and no other job on that machine starts between them.
 %
-% Pairs where BOTH jobs are frozen are skipped: their relative setup was already
-% satisfied in the current (valid) solution and cannot change. If a free job is
-% moved between two frozen jobs, the (frozen, free) and (free, frozen) pairs are
-% still generated, so the setup around it is enforced.
+% This is generated for EVERY ordered pair, including frozen-frozen. It is
+% tempting to skip frozen-frozen pairs ("their setup was already satisfied and
+% cannot change"), but that is wrong: if a free job currently sits between two
+% frozen jobs on a machine and the repair moves it away, those two frozen jobs
+% become directly adjacent and their (possibly large) direct setup must hold.
+% Skipping them lets the solver move that free job out and produce a schedule the
+% validator rejects. Enforcing it simply keeps a job between them when needed;
+% the current solution (free job in place) always satisfies it.
 
-constraint forall(i, j in 1..J where i != j /\ not (is_frozen[i] /\ is_frozen[j]))(
+constraint forall(i, j in 1..J where i != j)(
   (
     mach[i] == mach[j]
     /\ start[i] < start[j]
@@ -241,7 +251,7 @@ output [
   "{\n",
   "  \"Jobs\": [\n",
   concat([
-    "    {\"JobId\": " ++ show(j) ++
+    "    {\"JobId\": " ++ show(jobId[j]) ++
     ", \"StartTime\": " ++ show(start[j]) ++
     ", \"MachineId\": " ++ show(mach[j]) ++
     "}" ++

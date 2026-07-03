@@ -48,6 +48,51 @@ def changed_jobs(before, after):
     return {job_id for job_id in a if job_id in b and a[job_id] != b[job_id]}
 
 
+class WindowSelectionTest(unittest.TestCase):
+    """
+    get_job_window must always return in-bounds indices (0 <= i <= j <= jobs_nr-1),
+    even when the configured window size is >= the number of jobs or the instance
+    is tiny. A negative randint range here used to crash the whole SA run.
+    """
+
+    def _check_all_windows(self, hyperparam, jobs_counts, iterations=200):
+        n = FrozenNeighbour(hyperparam)
+        n.rand.seed(0)
+        for jobs_nr in jobs_counts:
+            for _ in range(iterations):
+                wsize, i, j = n.get_job_window(jobs_nr)
+                self.assertGreaterEqual(i, 0)
+                self.assertLessEqual(i, j)
+                self.assertLessEqual(j, jobs_nr - 1)
+                self.assertEqual(j - i, wsize)
+
+    def test_random_strategy_window_larger_than_instance(self):
+        self._check_all_windows(
+            {
+                "window_size_strategy": "random",
+                "window_size_min": 3,
+                "window_size_max": 10,
+            },
+            jobs_counts=[1, 2, 3, 5, 10, 11],
+        )
+
+    def test_relative_strategy_small_instances(self):
+        self._check_all_windows(
+            {
+                "window_size_strategy": "relative",
+                "window_size_min": 3,
+                "window_size_divident": 2,
+            },
+            jobs_counts=[1, 2, 3, 4, 5, 10],
+        )
+
+    def test_fixed_strategy_large_window(self):
+        self._check_all_windows(
+            {"window_size_strategy": "fixed", "window_size": 25},
+            jobs_counts=[1, 5, 10, 30],
+        )
+
+
 @unittest.skipUnless(
     MINIZINC_AVAILABLE, "minizinc binary and/or Chuffed solver not available"
 )

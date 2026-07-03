@@ -27,6 +27,18 @@ def greedy_solution(window, context=None, log=True):
     if context is None:
         context = window
 
+    # Fastest path: a single-pass, resource-aware constructor. Quality is
+    # irrelevant, only validity matters. Jobs are placed in precedence order, may
+    # run concurrently up to resource capacity, and are delayed by jumping to the
+    # next capacity/job event (never step by 1). Run it first (see build_valid).
+    solution = build_valid(input_data)
+    if solution is not None and constraints.validate(solution, context):
+        if log:
+            print("-------- greedy solution found using fast valid assignment --------")
+            print(json.dumps(solution, indent=4))
+            print("----------------")
+        return solution
+
     machines = [m["Id"] for m in input_data["Machines"]]
 
     # Base job order
@@ -98,7 +110,7 @@ def greedy_solution(window, context=None, log=True):
         print("Greedy Frozen: ", attempt)
 
         try:
-            solution = greedyF.greedy_solution(input_data, 0, -1, True)
+            solution = greedyF.greedy_solution(input_data, 0, -1, False)
         except RuntimeError:
             print("Greedy frozen failed, trying next attempt")
             continue
@@ -129,6 +141,266 @@ def greedy_solution(window, context=None, log=True):
             return rebuilt
 
     raise RuntimeError("Could not construct a valid initial greedy solution.")
+
+
+def topological_order(jobs, key=None):
+    """
+    Return the jobs in a precedence-respecting (topological) order using Kahn's
+    algorithm, so every predecessor comes before its successors. Precedence ids
+    that are not part of `jobs` are ignored (e.g. when scheduling a sub-window).
+    Returns None if the precedence graph has a cycle (no valid ordering exists).
+
+    Among the jobs that are currently ready (all predecessors placed), the one
+    with the smallest `key(job)` is emitted first (ties broken by Id). `key`
+    defaults to the DueTime; build_valid passes a resource-deadline key so that
+    jobs whose resource window closes early are scheduled first.
+    """
+    import heapq
+
+    if key is None:
+        key = lambda job: job["DueTime"]
+
+    job_by_id = {job["Id"]: job for job in jobs}
+    job_ids = set(job_by_id)
+
+    # Predecessors restricted to the given job set.
+    preds = {
+        job["Id"]: [p for p in job["PrecedenceJobIds"] if p in job_ids]
+        for job in jobs
+    }
+    indegree = {job_id: len(preds[job_id]) for job_id in job_ids}
+    successors = {job_id: [] for job_id in job_ids}
+    for job_id, plist in preds.items():
+        for p in plist:
+            successors[p].append(job_id)
+
+    def entry(job_id):
+        return (key(job_by_id[job_id]), job_id)
+
+    ready = [entry(jid) for jid in job_ids if indegree[jid] == 0]
+    heapq.heapify(ready)
+    order = []
+    while ready:
+        _, job_id = heapq.heappop(ready)
+        order.append(job_by_id[job_id])
+        for succ in successors[job_id]:
+            indegree[succ] -= 1
+            if indegree[succ] == 0:
+                heapq.heappush(ready, entry(succ))
+
+    if len(order) != len(jobs):
+        return None  # cycle
+    return order
+
+
+def resource_deadlines(input_data):
+    """
+    For each job, the latest start time at which it could still run with its
+    required resources available (ignoring contention from other jobs),
+    propagated backwards through precedence: a job's deadline is also bounded by
+    every successor's deadline minus the job's processing time. Jobs whose
+    resource window closes early therefore get an early deadline, and so do all
+    of their precedence ancestors -- which is what lets build_valid place
+    resource-critical chains early enough to fit their windows.
+
+    A job with no required resources (and no constrained descendants) gets an
+    infinite deadline (schedule it whenever). Returns {job_id: deadline}.
+    """
+    jobs = input_data["Jobs"]
+    input_jobs = {job["Id"]: job for job in jobs}
+    resources_by_id = {r["Id"]: r for r in input_data.get("Resources", [])}
+
+    # Times where resource availability can change; the latest feasible start (if
+    # any) always coincides with one of these.
+    bounds = set()
+    for resource in input_data.get("Resources", []):
+        for period in resource["AvailabilityPeriods"]:
+            bounds.add(period["Start"])
+            bounds.add(max(0, period["End"] - 1))
+    bounds = sorted(b for b in bounds if b >= 0)
+
+    INF = float("inf")
+
+    def own_deadline(job):
+        if not job["RequiredResources"]:
+            return INF
+        latest = None
+        for t in bounds:
+            if all(
+                get_resource_capacity_at(resources_by_id[req["ResourceId"]], t)
+                >= req["Capacity"]
+                for req in job["RequiredResources"]
+            ):
+                latest = t  # bounds are ascending, so keep the last feasible one
+        return latest if latest is not None else -1  # -1: never feasible alone
+
+    ids = set(input_jobs)
+    preds = {j["Id"]: [p for p in j["PrecedenceJobIds"] if p in ids] for j in jobs}
+    successors = {i: [] for i in ids}
+    for i, plist in preds.items():
+        for p in plist:
+            successors[p].append(i)
+
+    # Process successors before predecessors (reverse topological order).
+    out_degree = {i: len(successors[i]) for i in ids}
+    queue = [i for i in ids if out_degree[i] == 0]
+    reverse_order = []
+    while queue:
+        i = queue.pop()
+        reverse_order.append(i)
+        for p in preds[i]:
+            out_degree[p] -= 1
+            if out_degree[p] == 0:
+                queue.append(p)
+
+    deadline = {}
+    for i in reverse_order:
+        d = own_deadline(input_jobs[i])
+        for s in successors[i]:
+            d = min(d, deadline[s] - input_jobs[i]["ProcessingTime"])
+        deadline[i] = d
+    return deadline
+
+
+def _next_event_after(start, placed, input_data, input_jobs):
+    """
+    Smallest time strictly greater than `start` at which resource feasibility can
+    change: a resource capacity change, or the start/end of an already-placed job
+    (which frees or occupies shared capacity). Returns None if there is none.
+    Used to delay a resource-blocked job by jumping instead of stepping by 1.
+    """
+    best = None
+
+    def consider(t):
+        nonlocal best
+        if t > start and (best is None or t < best):
+            best = t
+
+    for t in input_data.get("ResourceEvents", {}).get("capacity_changes", []):
+        consider(t)
+    for pj in placed:
+        s = pj["StartTime"]
+        consider(s)
+        consider(s + input_jobs[pj["JobId"]]["ProcessingTime"])
+    return best
+
+
+def _earliest_feasible_start(job, base_start, placed, input_data, input_jobs):
+    """
+    Earliest time >= base_start at which `job` can run without violating resource
+    capacity, given the already-placed jobs (concurrency allowed). Delays the job
+    by jumping to the next capacity/job event. Returns None if no such time is
+    reachable (job needs more capacity than is ever available for its duration).
+    """
+    ctx_job = job
+    if not ctx_job["RequiredResources"]:
+        return base_start
+
+    start = base_start
+    # Bound the number of jumps to the number of distinct events plus a margin;
+    # feasibility only changes at those events, so this can never miss a solution.
+    max_jumps = (
+        len(input_data.get("ResourceEvents", {}).get("capacity_changes", []))
+        + 2 * len(placed)
+        + 8
+    )
+    for _ in range(max_jumps + 1):
+        if resources_available_for_job(
+            ctx_job, start, placed, input_data, input_jobs
+        ):
+            return start
+        nxt = _next_event_after(start, placed, input_data, input_jobs)
+        if nxt is None:
+            return None
+        start = nxt
+    return None
+
+
+def build_valid(input_data):
+    """
+    Single-pass, resource-aware greedy constructor. Places jobs in a
+    precedence-respecting order; each job may run concurrently with others up to
+    the shared resource capacity, and is delayed by jumping to the next relevant
+    event (not by stepping +1). For each job the eligible machine giving the
+    earliest feasible start is chosen. Every hard constraint (eligibility,
+    machine non-overlap, precedence, setup, resources) is satisfied by
+    construction, so the result passes constraints.validate.
+
+    Returns a solution list, or None if it cannot place some job (cyclic
+    precedence, or a job needing more resource capacity than is ever available)
+    -- in which case greedy_solution falls back to its other strategies.
+    """
+    jobs = input_data["Jobs"]
+    input_jobs = {job["Id"]: job for job in jobs}
+
+    # Schedule resource-critical jobs (and their precedence ancestors) first, so
+    # jobs whose resource window closes early are placed while capacity is still
+    # available instead of being pushed past their window by the schedule's
+    # sequence-dependent-setup stretch.
+    deadline = resource_deadlines(input_data)
+    order = topological_order(
+        jobs, key=lambda job: deadline.get(job["Id"], float("inf"))
+    )
+    if order is None:
+        return None
+
+    solution = []
+    scheduled = {}  # job_id -> entry
+    jobs_on_machine = {}  # machine_id -> list of placed entries
+
+    for job in order:
+        eligible = job["EligibleMachineIds"]
+        if not eligible:
+            return None
+
+        # Earliest start allowed by precedence (all predecessors finished).
+        prec_floor = 0
+        for pred_id in job["PrecedenceJobIds"]:
+            pred = scheduled.get(pred_id)
+            if pred is not None:
+                prec_floor = max(
+                    prec_floor,
+                    pred["StartTime"] + input_jobs[pred_id]["ProcessingTime"],
+                )
+
+        # Try every eligible machine, keep the earliest feasible placement.
+        best_start = None
+        best_machine = None
+        for machine_id in eligible:
+            on_m = jobs_on_machine.get(machine_id)
+            if on_m:
+                # Jobs on a machine are placed in increasing start order, so the
+                # last one placed is the latest / the direct predecessor here.
+                last = on_m[-1]
+                last_id = last["JobId"]
+                last_end = last["StartTime"] + input_jobs[last_id]["ProcessingTime"]
+                setup_time = job["JobSetupTimes"][last_id - 1]
+                base = max(prec_floor, last_end + setup_time)
+            else:
+                base = max(prec_floor, job["InitialSetupTime"])
+
+            start = _earliest_feasible_start(
+                job, base, solution, input_data, input_jobs
+            )
+            if start is not None and (best_start is None or start < best_start):
+                best_start = start
+                best_machine = machine_id
+
+        if best_start is None:
+            return None
+
+        entry = {
+            "JobId": job["Id"],
+            "StartTime": best_start,
+            "MachineId": best_machine,
+            "ProcessingTime": job["ProcessingTime"],
+            "DueTime": job["DueTime"],
+        }
+        solution.append(entry)
+        scheduled[job["Id"]] = entry
+        jobs_on_machine.setdefault(best_machine, []).append(entry)
+
+    return solution
 
 
 def rebuild_schedule(solution, input_data):
@@ -221,14 +493,15 @@ def rebuild_schedule(solution, input_data):
                 start_time = max(start_time, ctx_job["InitialSetupTime"])
 
             # Resource-aware part:
-            # If resources are not available at this start time, delay the job.
-            while not resources_available_for_job(
+            # If resources are not available at this start time, delay the job by
+            # jumping to the next capacity/job event (stepping +1 is catastrophically
+            # slow on large horizons and could effectively hang).
+            feasible_start = _earliest_feasible_start(
                 ctx_job, start_time, rebuilt, input_data, input_jobs
-            ):
-                start_time += 1
-
-                if start_time > horizon_limit:
-                    return None
+            )
+            if feasible_start is None or feasible_start > horizon_limit:
+                return None
+            start_time = feasible_start
 
             new_job = copy.deepcopy(job)
             new_job["StartTime"] = start_time
