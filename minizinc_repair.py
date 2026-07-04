@@ -45,38 +45,26 @@ def repair_with_minizinc(context_window, original_input_data, time_limit_seconds
             data_path,
         ]
 
-        # We pass --time-limit to MiniZinc, but Chuffed's free search does not
-        # always honour it promptly (it can keep restarting well past the
-        # limit). So we also enforce a hard wall-clock timeout here. Crucially,
-        # when the process is killed we still keep whatever output it produced:
-        # MiniZinc prints every improving solution as it goes, so the captured
-        # output already contains the best solution found so far.
+        # Rely on MiniZinc's own --time-limit to stop the solver; do not impose
+        # a hard Python-side wall-clock kill (it terminated the solver tree and
+        # could take down the whole run).
         try:
             result = subprocess.run(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                timeout=time_limit_seconds + 5,
             )
             stdout = result.stdout
             stderr = result.stderr
             returncode = result.returncode
-        except subprocess.TimeoutExpired as exc:
-            # On timeout subprocess kills the process and attaches the output it
-            # had captured so far to the exception.
-            stdout = exc.stdout or ""
-            stderr = exc.stderr or ""
-            if isinstance(stdout, bytes):
-                stdout = stdout.decode(errors="replace")
-            if isinstance(stderr, bytes):
-                stderr = stderr.decode(errors="replace")
-            returncode = None
-
-        # returncode 0 = solved/optimal, None = we killed it on timeout (but it
-        # may still have printed a usable solution). Any other non-zero code is
-        # a real MiniZinc error.
-        if returncode not in (0, None):
+        except KeyboardInterrupt:
+            print("KeyboardInterrupt")
+            return None
+        
+        # returncode 0 = solved/optimal. Any other non-zero code is a real
+        # MiniZinc error.
+        if returncode != 0:
             print("MiniZinc error:")
             print(stderr)
             return None

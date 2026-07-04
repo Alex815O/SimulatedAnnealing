@@ -1,0 +1,13 @@
+[2026-07-03_08-42-18] Attempt:    0 | t:    0             | Temperature: 500.0000 | Score: 25419176.0000
+[2026-07-03_08-42-18] Attempt:    1 | t:    0             | Temperature: 475.0000 | Score: 25418190.0000
+[2026-07-03_08-42-18] Attempt:    2 | t:    0             | Temperature: 451.2500 | Score: 25418190.0000
+[2026-07-03_08-42-18] Attempt:    3 | t:    0             | Temperature: 428.6875 | Score: 25418190.0000
+[2026-07-03_08-42-18] Attempt:    4 | t:    0             | Temperature: 407.2531 | Score: 25418518.0000
+[2026-07-03_08-42-18] Attempt:    5 | t:    0             | Temperature: 386.8905 | Score: 25418530.0000
+[2026-07-03_08-42-18] Attempt:    6 | t:    0             | Temperature: 367.5459 | Score: 25418530.0000
+[2026-07-03_08-42-18] Attempt:    7 | t:    0             | Temperature: 349.1686 | Score: 25418694.0000
+[2026-07-03_08-42-18] Attempt:    8 | t:    0             | Temperature: 331.7102 | Score: 25418694.0000
+[2026-07-03_08-42-18] Attempt:    9 | t:    0             | Temperature: 315.1247 | Score: 25418694.0000
+[2026-07-03_08-42-18] Attempt:   10 | t:    0             | Temperature: 299.3685 | Score: 25418694.0000
+[2026-07-03_08-42-18] Attempt:   11 | t:    0             | Temperature: 284.4000 | Score: 25417698.0000
+[2026-07-03_08-42-18] Attempt:   12 | t:    0             | Temperature: 270.1800 | Score: 25417832.0000
