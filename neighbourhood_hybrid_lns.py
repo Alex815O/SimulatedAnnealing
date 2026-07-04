@@ -35,9 +35,7 @@ class FrozenNeighbour:
         self.attemts_for_neighbour = hyperparam.get("attemts_for_neighbour", 10000)
         self.repair_time_limit = hyperparam.get("repair_time_limit_seconds", 60)
         self.use_greedy_fallback = hyperparam.get("use_greedy_fallback", True)
-        # Records how the last returned neighbour was produced: "minizinc",
-        # "greedy" or None (no neighbour found / fell back to the input copy).
-        self.last_neighbour_source = None
+        self.last_neighbour_source = None # greedy / minizinc
 
     def generate_neighbour(self, solution, input_data):
         self.last_neighbour_source = None

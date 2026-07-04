@@ -19,37 +19,19 @@ array[1..J] of bool: is_frozen;
 array[1..J] of int: fixed_start;
 array[1..J] of int: fixed_machine;
 
-% Real (global) job id for each position 1..J. The model indexes everything by
-% position, but only a window-relevant subset of the instance is sent to the
-% solver, so a position is no longer equal to the job's id. This maps it back so
-% the output reports the correct JobId.
+% With the window version, the idx is not directly the job, jobId is a mapping
 array[1..J] of int: jobId;
 
-% Time window the free (non-frozen) jobs must be rescheduled into. In an LNS
-% repair the free jobs come from a contiguous time window of the current
-% solution, and their original positions already fit inside [WINDOW_LB,
-% WINDOW_UB]. Restricting them to that window keeps the original schedule
-% feasible while shrinking the free start-time domains enormously, which is what
-% makes the repair fast. For a full solve these default to 0 / T (no restriction).
+% lower and upperbound of the window
 int: WINDOW_LB;
 int: WINDOW_UB;
 
-% A free job always runs inside [WINDOW_LB, WINDOW_UB]. These par predicates let
-% the constraints below skip frozen jobs and capacity intervals that cannot
-% interact with any free job, so they never enter the flattened model. That is
-% what makes the repair fast: only the window-relevant part of the instance is
-% sent to the solver, even though the data still describes the whole instance.
-% With the default window (0 .. T) every job/interval qualifies, so a full solve
-% is unaffected.
 
-% The job's fixed interval overlaps the window. Only such frozen jobs can run at
-% the same time as a free job and therefore compete for a machine or a resource.
 function bool: window_active(int: j) =
   not is_frozen[j]
   \/ (fixed_start[j] < WINDOW_UB /\ fixed_start[j] + jobsDuration[j] > WINDOW_LB);
 
-% The job actually STARTS inside the window. Only at such start times can a free
-% job be running, so only these start times need a resource-peak check.
+
 function bool: starts_in_window(int: j) =
   not is_frozen[j]
   \/ (WINDOW_LB <= fixed_start[j] /\ fixed_start[j] < WINDOW_UB);
@@ -59,27 +41,27 @@ function bool: starts_in_window(int: j) =
 function bool: interval_in_window(int: i) =
   capacityChange[i] < WINDOW_UB /\ capacityChange[i + 1] > WINDOW_LB;
 
-% -----------------------------
+% -------------------------
 % Decision variables
-% -----------------------------
+% ---------------------------
 
 array[1..J] of var 0..T-1: start;
 array[1..J] of var 1..M: mach;
 array[1..J] of var 0..T: endTime =
   [start[j] + jobsDuration[j] | j in 1..J];
   
-% -----------------------------
+% --------------------------
 % Frozen jobs for LNS repair
-% -----------------------------
+% -------------------------
 % Jobs outside the selected neighborhood keep their old start time and machine.
-% Only non-frozen jobs may be changed by MiniZinc.
+% Only non-frozen jobs may be changed by MiniZinc. 
 
 constraint forall(j in 1..J where is_frozen[j]) (
   start[j] = fixed_start[j] /\
   mach[j] = fixed_machine[j]
 );
 
-% Keep the free jobs inside the repair window (see WINDOW_LB / WINDOW_UB above).
+% Keep the free jobs inside the repair window 
 constraint forall(j in 1..J where not is_frozen[j]) (
   start[j] >= WINDOW_LB /\
   endTime[j] <= WINDOW_UB
@@ -116,26 +98,7 @@ constraint forall(i, j in 1..J where
 % Sequence-dependent setup time
 % -----------------------------
 % Setup time is only required between two jobs that run DIRECTLY one after the
-% other on the same machine. This matches the validator (check_setup_times),
-% which sorts the jobs on each machine by start time and only checks each job
-% against its immediate predecessor.
-%
-% The previous version required setupTime[j, i] between every pair where i runs
-% before j, even when other jobs ran in between. With sequence-dependent setup
-% times that is too strong: it rejected valid schedules (and made the LNS repair
-% infeasible, so MiniZinc never produced a neighbour).
-%
-% job i is the direct predecessor of job j iff they share a machine, i starts
-% before j, and no other job on that machine starts between them.
-%
-% This is generated for EVERY ordered pair, including frozen-frozen. It is
-% tempting to skip frozen-frozen pairs ("their setup was already satisfied and
-% cannot change"), but that is wrong: if a free job currently sits between two
-% frozen jobs on a machine and the repair moves it away, those two frozen jobs
-% become directly adjacent and their (possibly large) direct setup must hold.
-% Skipping them lets the solver move that free job out and produce a schedule the
-% validator rejects. Enforcing it simply keeps a job between them when needed;
-% the current solution (free job in place) always satisfies it.
+% other on the same machine.
 
 constraint forall(i, j in 1..J where i != j)(
   (
@@ -151,10 +114,6 @@ constraint forall(i, j in 1..J where i != j)(
 % -----------------------------
 % Initial setup
 % -----------------------------
-% The validator only requires the FIRST job on each machine to respect its
-% InitialSetupTime. Every other job is covered by the inter-job setup time in
-% the non-overlap constraint above. So a job needs its initial setup time only
-% if no other job on the same machine starts before it.
 
 constraint forall(j in 1..J)(
   start[j] >= initSetupTime[j]
@@ -175,12 +134,6 @@ constraint forall(j, p in 1..J where preJobs[j, p])(
 % Resource capacity constraints
 % Concurrent (cumulative) version
 % -----------------------------
-% A resource is only overloaded when jobs that run AT THE SAME TIME need more
-% capacity than is available. The previous version summed every job that
-% overlapped a whole capacity interval, which also counted jobs that merely run
-% one after another inside that interval. That rejected perfectly valid, densely
-% packed schedules and made MiniZinc infeasible on realistic instances (so the
-% LNS repair always fell back to greedy and never found a MiniZinc neighbour).
 %
 % Resource usage can only peak at a job start time or at a capacity-change time,
 % so it is enough to check those points. At each such time t, the jobs running
@@ -206,8 +159,6 @@ constraint forall(r in 1..R, j in 1..J where starts_in_window(j))(
 % Peak usage at every capacity-change time. This catches jobs that span a
 % boundary into a lower-capacity interval (their start time alone would be
 % checked against the higher, earlier capacity).
-% Only capacity changes inside the window can affect a free job; outside it the
-% load is frozen-only and already valid.
 constraint forall(r in 1..R, i in 1..MAX_CAPACITY_CHANGE-1
     where interval_in_window(i) /\ capacityChange[i] >= WINDOW_LB)(
   sum(k in 1..J where window_active(k))(

@@ -36,7 +36,7 @@ def greedy_solution(window, context=None, log=True):
         if log:
             print("-------- greedy solution found using fast valid assignment --------")
             print(json.dumps(solution, indent=4))
-            print("----------------")
+            print("-------- greedy solution found using fast valid assignment --------")
         return solution
 
     machines = [m["Id"] for m in input_data["Machines"]]

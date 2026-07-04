@@ -13,14 +13,15 @@ MODEL_PATH = os.path.join(os.path.dirname(__file__), "lns_repair.mzn")
 def repair_with_minizinc(context_window, original_input_data, time_limit_seconds=3):
     """
     Repair a frozen/flexible LNS neighborhood using MiniZinc.
+    Only hand MiniZinc the window-relevant jobs; the rest keep their fixed
+    position and are merged back into the solution after solving.
 
     context_window contains all jobs:
     - jobs outside the selected window have Frozen=True and Position fixed
     - jobs inside the window have Frozen=False
     """
 
-    # Only hand MiniZinc the window-relevant jobs; the rest keep their fixed
-    # position and are merged back into the solution after solving.
+
     kept_jobs, dropped_frozen = select_relevant_jobs(context_window)
     data = build_minizinc_data(context_window, kept_jobs)
 
@@ -34,10 +35,6 @@ def repair_with_minizinc(context_window, original_input_data, time_limit_seconds
             "minizinc",
             "--solver",
             "chuffed",
-            # Free search: let Chuffed use its own activity-based search instead
-            # of the static int_search annotation. On the LNS repair sub-problems
-            # the static search fails to find even a feasible solution within the
-            # time limit, while free search finds (and improves) one quickly.
             "-f",
             "--time-limit",
             str(time_limit_seconds * 1000),
@@ -45,9 +42,6 @@ def repair_with_minizinc(context_window, original_input_data, time_limit_seconds
             data_path,
         ]
 
-        # Rely on MiniZinc's own --time-limit to stop the solver; do not impose
-        # a hard Python-side wall-clock kill (it terminated the solver tree and
-        # could take down the whole run).
         try:
             result = subprocess.run(
                 cmd,
@@ -62,8 +56,6 @@ def repair_with_minizinc(context_window, original_input_data, time_limit_seconds
             print("KeyboardInterrupt")
             return None
         
-        # returncode 0 = solved/optimal. Any other non-zero code is a real
-        # MiniZinc error.
         if returncode != 0:
             print("MiniZinc error:")
             print(stderr)
@@ -74,8 +66,6 @@ def repair_with_minizinc(context_window, original_input_data, time_limit_seconds
         if solution is None:
             return None
 
-        # MiniZinc only rescheduled the kept jobs; add the dropped frozen jobs
-        # back at their fixed positions to rebuild the complete schedule.
         solution.extend(
             frozen_job_to_solution_entry(job) for job in dropped_frozen
         )
@@ -88,22 +78,13 @@ def repair_with_minizinc(context_window, original_input_data, time_limit_seconds
 
 def select_relevant_jobs(context):
     """
-    Reduce the jobs handed to MiniZinc to only those relevant to the repair
-    window, so the sub-problem stays roughly window-sized instead of scaling with
-    the whole instance.
+    Reduce jobs which are not relevant for the repair of the defined window
+    This reduce constraints -> which improves efficency
 
-    A free (non-frozen) job is always kept. A frozen job is kept only if it can
-    actually interact with a free job:
-      - its fixed interval overlaps the window (it competes for a machine or a
-        resource while a free job runs), or
+    A frozen job is kept only if it can actually interact with a free job:
+      - its fixed interval overlaps the window , or
       - it is the direct machine predecessor/successor of the window on its
-        machine (it constrains the setup time of the first/last window job there).
-    Every other frozen job is dropped from the MiniZinc data and merged back into
-    the solution unchanged afterwards (see repair_with_minizinc).
-
-    With no window set (RepairWindowStart/End absent) the window is the whole
-    horizon, so every frozen job overlaps and nothing is dropped -- identical to
-    the previous "send the whole instance" behaviour.
+        machine 
 
     Returns (kept_jobs, dropped_frozen_jobs).
     """
@@ -124,17 +105,11 @@ def select_relevant_jobs(context):
         start = pos["StartTime"]
         end = start + job["ProcessingTime"]
         if start < window_ub and end > window_lb:
-            # Frozen interval overlaps the window: keep it pinned so the model
-            # still sees the machine/resource load it causes during the window.
             kept.append(job)
         else:
             non_overlapping_frozen.append(job)
 
-    # Direct machine boundary neighbours of the window. A non-overlapping frozen
-    # job either ends at/before window_lb (a predecessor candidate) or starts
-    # at/after window_ub (a successor candidate). Only the closest one on each
-    # side per machine can be the immediate neighbour of a window job and thus
-    # constrain its setup time; keep those and drop the rest.
+    # Direct machine boundary neighbours of the window. 
     predecessor = {}  # machine -> nearest frozen job ending <= window_lb
     successor = {}    # machine -> nearest frozen job starting >= window_ub
     for job in non_overlapping_frozen:
@@ -146,20 +121,12 @@ def select_relevant_jobs(context):
             best = predecessor.get(machine)
             if best is None or start > best["Position"]["StartTime"]:
                 predecessor[machine] = job
-        else:  # start >= window_ub
+        else:  
             best = successor.get(machine)
             if best is None or start < best["Position"]["StartTime"]:
                 successor[machine] = job
 
-    # The MiniZinc model exempts a job from its InitialSetupTime only if another
-    # job on the same machine starts before it. If we drop every frozen job that
-    # precedes a kept one, that kept job becomes "first on its machine" in the
-    # sub-model and is forced to start >= its InitialSetupTime -- which its pinned
-    # position may violate (it was not first in the full schedule), making the
-    # model infeasible. So always keep the earliest-start frozen job on each
-    # machine: it legitimately satisfies its own initial setup (the base is valid,
-    # so the true first job respects it) and gives every later kept job on that
-    # machine the predecessor it needs for the exemption.
+    # finds first job on machine, that has special rules in the model
     machine_first = {}
     for job in frozen_jobs:
         machine = job["Position"]["MachineId"]
@@ -271,18 +238,14 @@ def build_minizinc_data(context, kept_jobs=None):
 
     T = calculate_horizon(context, max_fixed_end)
 
-    # Important:
     # The main model has start[j] in 0..T-1.
     # If T is smaller than a frozen start time, MiniZinc becomes infeasible.
     T = max(T, max_fixed_end + 1)
 
-    # Window the free jobs must be rescheduled into. When the caller knows the
-    # window (the LNS neighbourhood does), restricting the free jobs to it keeps
-    # the current solution feasible and makes the search dramatically faster.
-    # Without it we fall back to the full horizon (no restriction).
+    # Window the free jobs must be rescheduled into. 
+    # We do not want to also check frozen jobs position
     window_lb = context.get("RepairWindowStart", 0)
     window_ub = context.get("RepairWindowEnd", T)
-    # Never tighter than the frozen-anchored horizon allows.
     window_ub = min(max(window_ub, window_lb), T)
 
     return {
