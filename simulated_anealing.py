@@ -19,17 +19,39 @@ timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 rand = Random()
 
 # Directory where the current run's sa_log.txt and graph are stored.
-# Set up in main() via setup_run_dir() before the annealing starts.
+# Set up via setup_run_dir() before the annealing starts.
 run_dir = "."
+# Name of the instance file currently being solved (without path/extension).
+# Set in setup_run_dir(); used for the graph title/filename.
+instance_name = ""
 
 
-def setup_run_dir(input_path):
-    """Create a folder under runs/ named after the instance file and date."""
-    global run_dir
+def setup_run_dir(input_path, run_id=None):
+    """Create a unique subfolder under runs/ for this run's sa_log.txt and graph.
+
+    Every run gets its own subfolder (instance name + timestamp + optional run
+    id), so repeated or parallel runs never overwrite each other's logs/graphs.
+    Also resets the live graph so each run starts a fresh curve titled with the
+    instance file name.
+    """
+    global run_dir, instance_name
     instance_name = os.path.splitext(os.path.basename(input_path))[0]
     folder_timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    run_dir = os.path.join("runs", f"{instance_name}_{folder_timestamp}")
+    suffix = f"_run{run_id}" if run_id is not None else ""
+    base = os.path.join("runs", f"{instance_name}_{folder_timestamp}{suffix}")
+
+    # Guarantee uniqueness even when several runs start within the same second.
+    run_dir = base
+    counter = 1
+    while os.path.exists(run_dir):
+        run_dir = f"{base}_{counter}"
+        counter += 1
+
     os.makedirs(run_dir, exist_ok=True)
+
+    # Fresh graph per run, titled with the instance file name.
+    visualize_logs.reset(instance_name)
+
     print(f"Run directory: {run_dir}")
     return run_dir
 
@@ -50,7 +72,7 @@ hyperparam: dict = {
     "use_greedy_fallback": True,  # keep making progress when MiniZinc finds no repair
 
     # --- Neighbourhood selection ----------------------------------------------
-    "small_instance_threshold": 12,  # <= this many jobs -> SingleChangeNeighbour
+    "small_instance_threshold": 1,  # <= this many jobs -> SingleChangeNeighbour
     "swap_order_weight": 2,          # SingleChangeNeighbour move mix
     "change_machine_weight": 1,
 }
@@ -157,7 +179,9 @@ def log_result(solution, score, T, t, attemts, persist=False):
         f.write(log_message + "\n")
     graph_file = None
     if persist:
-        graph_file = os.path.join(run_dir, f"graph_{score:.4f}_{timestamp}.png")
+        graph_file = os.path.join(
+            run_dir, f"graph_{instance_name}_{score:.4f}_{timestamp}.png"
+        )
     visualize_logs.update(score, T, graph_file)
 
 

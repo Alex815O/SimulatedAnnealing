@@ -1,7 +1,0 @@
-[2026-07-02 12:19:10] Attempt:    0 | t:    0             | Temperature: 1000.0000 | Score: 323835.0000
-[2026-07-02 12:19:10] Attempt:    1 | t:    0             | Temperature: 950.0000 | Score: 324044.0000
-[2026-07-02 12:19:10] Attempt:    2 | t:    0             | Temperature: 902.5000 | Score: 324044.0000
-[2026-07-02 12:19:10] Attempt:    3 | t:    0             | Temperature: 857.3750 | Score: 324044.0000
-[2026-07-02 12:19:10] Attempt:    4 | t:    0             | Temperature: 814.5062 | Score: 324259.0000
-[2026-07-02 12:19:10] Attempt:    5 | t:    0             | Temperature: 773.7809 | Score: 324259.0000
-[2026-07-02 12:19:10] Attempt:    6 | t:    0             | Temperature: 735.0919 | Score: 324587.0000

@@ -32,6 +32,30 @@ plt.ion()
 plt.show(block=False)
 
 
+def reset(instance_name=""):
+    """Start a fresh graph for a new run and put the instance file name in the
+    title, so each saved graph is clearly attributed to its instance."""
+    global score_x_data, score_y_data, temp_x_data, temp_y_data
+    score_x_data = []
+    score_y_data = []
+    temp_x_data = []
+    temp_y_data = []
+
+    score_line.set_data([], [])
+    temp_line.set_data([], [])
+
+    title = "Simulated Annealing: Score and Temperature"
+    if instance_name:
+        title += f"\nInstance: {instance_name}"
+    ax1.set_title(title)
+
+    ax1.relim()
+    ax1.autoscale_view()
+    ax2.relim()
+    ax2.autoscale_view()
+    fig.canvas.draw_idle()
+
+
 def update(score, temperature, file=None):
     """Update the plot with new score and temperature values."""
     global score_x_data, score_y_data, temp_x_data, temp_y_data

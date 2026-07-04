@@ -12,6 +12,29 @@ import perprocessing
 import simulated_anealing
 
 
+def log_hyperparams(instance_path, input_data):
+    """Write the hyperparameters actually used for this run into its sa_log.txt.
+
+    Called after setup_run_dir() so it targets the run's own subfolder, and it
+    reads the global hyperparam dict *after* the benchmark overrides are applied,
+    so the log reflects exactly what ran (including T_max/T_min for this size).
+    """
+    jobs_nr = len(input_data["Jobs"])
+    T_max, T_min = simulated_anealing.init_temperature(jobs_nr)
+
+    header = (
+        "=" * 60 + "\n"
+        f"Instance: {os.path.basename(instance_path)}\n"
+        f"Jobs: {jobs_nr}\n"
+        f"Temperature schedule: T_max={T_max}, T_min={T_min}\n"
+        f"Hyperparameters:\n{json.dumps(simulated_anealing.hyperparam, indent=2)}\n"
+        + "=" * 60
+    )
+    print(header)
+    with open(os.path.join(simulated_anealing.run_dir, "sa_log.txt"), "a") as f:
+        f.write(header + "\n")
+
+
 # Benchmark-friendly overrides for the global SA hyperparameters.
 #
 # The defaults in simulated_anealing.py are tuned for solution quality, not for
@@ -72,8 +95,15 @@ def run_single_instance(instance_path, runs=5):
 
         start_time = time.time()
 
+        # Each run gets its own subfolder under runs/ (instance + timestamp +
+        # run id) so its sa_log.txt and graph never collide with other runs.
+        simulated_anealing.setup_run_dir(instance_path, run)
+
         input_data = simulated_anealing.read_input(instance_path)
         input_data = perprocessing.preprocessing(input_data)
+
+        # Record the hyperparameters used for this instance in the run's log.
+        log_hyperparams(instance_path, input_data)
 
         solution = simulated_anealing.simulated_annealing(input_data)
 
@@ -139,7 +169,7 @@ def main():
     simulated_anealing.hyperparam.update(BENCHMARK_HYPERPARAMS)
     print("Benchmark hyperparameter overrides:", BENCHMARK_HYPERPARAMS)
 
-    instance_paths = sorted(glob.glob("data/PSSAI_PMS_j500*.json"))
+    instance_paths = sorted(glob.glob("data/PSSAI_PMS_j*.json"))
 
     if not instance_paths:
         print("No benchmark instances found in data/")
@@ -148,7 +178,7 @@ def main():
     all_results = []
 
     for instance_path in instance_paths:
-        result = run_single_instance(instance_path, runs=1)
+        result = run_single_instance(instance_path, runs=3)
         all_results.append(result)
 
         with open("benchmark_summary.csv", "w", newline="") as f:

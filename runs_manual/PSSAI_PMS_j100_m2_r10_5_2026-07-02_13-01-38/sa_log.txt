@@ -1,3 +1,0 @@
-[2026-07-02_13-01-38] Attempt:    0 | t:    0             | Temperature: 500.0000 | Score: 318513.0000
-[2026-07-02_13-01-38] Attempt:    1 | t:    0             | Temperature: 475.0000 | Score: 318763.0000
-[2026-07-02_13-01-38] Attempt:    2 | t:    0             | Temperature: 451.2500 | Score: 318763.0000
