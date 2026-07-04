@@ -35,20 +35,37 @@ def setup_run_dir(input_path):
 
 
 hyperparam: dict = {
-    "T_max": 500,
-    "T_min": 10,
-    "max_attemts": 1,
-    "alpha": 0.95,
-    "window_size_min": 3,
-    "window_size_max": 10,
-    "window_size_divident": 2,
-    "window_size": 5,
-    "window_size_strategy": "random",
+    # --- Cooling schedule -----------------------------------------------------
+    "alpha": 0.92,              
+    "max_attemts": 5,           
+
+    # --- LNS repair window (kept small so MiniZinc stays fast per neighbour) ---
+    "window_size_strategy": "random",  # random|fixed|relative; random keeps MiniZinc small
+    "window_size_min": 4,
+    "window_size_max": 12,
+    "window_size_divident": 2,  # only used by the "relative" strategy
+    "window_size": 8,           # only used by the "fixed" strategy
     "attemts_for_neighbour": 30,
-    "small_instance_threshold": 0,
-    "repair_time_limit_seconds": 10,
-    "use_greedy_fallback": False
+    "repair_time_limit_seconds": 8,
+    "use_greedy_fallback": True,  # keep making progress when MiniZinc finds no repair
+
+    # --- Neighbourhood selection ----------------------------------------------
+    "small_instance_threshold": 12,  # <= this many jobs -> SingleChangeNeighbour
+    "swap_order_weight": 2,          # SingleChangeNeighbour move mix
+    "change_machine_weight": 1,
 }
+
+def init_temperature(jobs_nr):
+    if jobs_nr <= 6:            
+       return 5.0, 0.01
+    elif jobs_nr <= 12:       
+       return 300.0, 0.3
+    elif jobs_nr <= 60:       
+       return 5000.0, 5.0
+    elif jobs_nr <= 200:      
+       return 8000.0, 8.0
+    else:                     
+       return 15000.0, 15.0
 
 
 def read_input(file_path):
@@ -75,8 +92,6 @@ def accept_neighbour(score_solution, score_neighbour, T):
 
 
 def simulated_annealing(input_data: dict):
-    T = hyperparam["T_max"]
-    T_min = hyperparam["T_min"]
     max_attempts = hyperparam["max_attemts"]
     alpha = hyperparam["alpha"]
 
@@ -87,6 +102,11 @@ def simulated_annealing(input_data: dict):
 
     current = greedy.greedy_solution(input_data)
     current_score = evaluate(current, input_data)
+
+    T, T_min = init_temperature(jobs_nr)
+    
+    print(f"Temperature schedule: T_max={T:.4f}, T_min={T_min:.4f} "
+          f"(jobs={jobs_nr}, initial_score={current_score})")
 
     best = copy.deepcopy(current)
     best_score = current_score
