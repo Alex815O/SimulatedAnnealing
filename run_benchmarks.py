@@ -136,6 +136,12 @@ def run_single_instance(instance_path, runs=5):
             best_score = score
             best_solution = copy.deepcopy(solution)
 
+        # Ctrl+C during annealing: the run above returned its best-so-far and it
+        # has now been saved. Stop launching further runs of this instance.
+        if simulated_anealing.interrupted:
+            print("Interrupted -- saved this run's best solution; stopping.")
+            break
+
     if not scores:
         return {
             "instance": os.path.basename(instance_path),
@@ -196,6 +202,12 @@ def main():
             )
             writer.writeheader()
             writer.writerows(all_results)
+
+        # Stop the whole benchmark after a Ctrl+C, keeping everything computed so
+        # far (this instance's partial results are already in the CSV above).
+        if simulated_anealing.interrupted:
+            print("Benchmark interrupted -- results so far are saved.")
+            break
 
     print("=" * 80)
     print("Benchmark summary")

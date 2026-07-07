@@ -25,6 +25,10 @@ run_dir = "."
 # Set in setup_run_dir(); used for the graph title/filename.
 instance_name = ""
 
+# Set to True when simulated_annealing() catches a Ctrl+C. The benchmark reads
+# this to stop cleanly after saving the current run's best-so-far solution.
+interrupted = False
+
 
 def setup_run_dir(input_path, run_id=None):
     """Create a unique subfolder under runs/ for this run's sa_log.txt and graph.
@@ -87,7 +91,7 @@ def init_temperature(jobs_nr):
     elif jobs_nr <= 200:      
        return 8000.0, 8.0
     else:                     
-       return 15000.0, 15.0
+       return 5000.0, 15.0
 
 
 def read_input(file_path):
@@ -134,22 +138,31 @@ def simulated_annealing(input_data: dict):
     best_score = current_score
 
     attempt = 0
-    while T > T_min:
-        for t in range(max_attempts):
-            neighbour = neighbourhood.generate_neighbour(current, input_data)
-            neighbour_score = evaluate(neighbour, input_data)
+    # A Ctrl+C anywhere in the annealing loop (including inside a MiniZinc call)
+    # is caught here so we still return the best solution found so far instead of
+    # losing the whole run's work.
+    try:
+        while T > T_min:
+            for t in range(max_attempts):
+                neighbour = neighbourhood.generate_neighbour(current, input_data)
+                neighbour_score = evaluate(neighbour, input_data)
 
-            if accept_neighbour(current_score, neighbour_score, T):
-                current = neighbour
-                current_score = neighbour_score
+                if accept_neighbour(current_score, neighbour_score, T):
+                    current = neighbour
+                    current_score = neighbour_score
 
-            if current_score < best_score:
-                best = copy.deepcopy(current)
-                best_score = current_score
+                if current_score < best_score:
+                    best = copy.deepcopy(current)
+                    best_score = current_score
 
-            log_result(best, current_score, T, t, attempt)
-        attempt += 1
-        T *= alpha
+                log_result(best, current_score, T, t, attempt)
+            attempt += 1
+            T *= alpha
+    except KeyboardInterrupt:
+        global interrupted
+        interrupted = True
+        print(f"\n[Interrupted] Returning best solution found so far "
+              f"(score={best_score:.4f}).")
 
     log_result(best, current_score, T, -1, -1, persist=True)
     return best
